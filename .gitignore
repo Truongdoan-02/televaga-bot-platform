@@ -1,0 +1,10 @@
+node_modules/
+frontend/.next/
+backend/dist/
+backend/data/
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.tsbuildinfo
+*.log

@@ -1,0 +1,41 @@
+{
+  "name": "televaga-backend",
+  "version": "1.0.0",
+  "description": "Demo_TeleVaga Backend - Telegram conversation management with AI and Realtime",
+  "main": "dist/index.js",
+  "scripts": {
+    "sync:bot-buttons": "tsx scripts/syncBotButtons.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "seed": "tsx src/database/seed.ts"
+  },
+  "keywords": [
+    "telegram",
+    "ai",
+    "gemini",
+    "socket.io",
+    "express",
+    "mysql"
+  ],
+  "author": "TeleVaga Team",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^2.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.12.0",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  },
+  "type": "module"
+}
