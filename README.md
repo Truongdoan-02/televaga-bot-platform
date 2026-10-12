@@ -72,7 +72,13 @@ cd ..
 
 ### Cấu hình backend
 
-Tạo hoặc cập nhật `backend/.env`. Nếu đã có tệp, giữ các giá trị đang sử dụng và chỉ sửa những mục cần thiết.
+Sao chép tệp mẫu từ thư mục gốc, rồi thay mật khẩu MySQL và token Telegram bằng giá trị của bạn:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+```
+
+Chỉ chạy lệnh sao chép khi chưa có `.env`. Nếu đã có tệp, giữ các giá trị đang sử dụng và chỉ bổ sung những mục cần thiết. Tệp mẫu mặc định dùng bot môi trường với `TELEGRAM_MODE=polling`; nếu quản lý bot qua giao diện, dùng lựa chọn bên dưới.
 
 ```env
 PORT=5000
@@ -108,7 +114,13 @@ Nếu log báo `Missing BNK tables`, cần chuẩn bị schema nghiệp vụ tr�
 
 ### Cấu hình frontend
 
-Tạo hoặc cập nhật `frontend/.env.local`:
+Khi chưa có `frontend/.env.local`, sao chép mẫu từ thư mục gốc:
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env.local
+```
+
+Giá trị mặc định:
 
 ```env
 NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
