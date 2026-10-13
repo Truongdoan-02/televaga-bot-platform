@@ -55,3 +55,10 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 );
+
+-- Durable broadcast history, recipient delivery states, and maintenance settings.
+CREATE TABLE IF NOT EXISTS broadcast_state (
+  id TINYINT PRIMARY KEY,
+  payload LONGTEXT NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

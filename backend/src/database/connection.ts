@@ -53,6 +53,17 @@ class DatabaseService {
     suggestions: [],
   };
 
+  async loadBroadcastState(): Promise<string | null> {
+    if (!this.isUsingMySQL || !this.pool) throw new Error('MySQL is required for broadcast storage.');
+    const [rows] = await this.pool.query<mysql.RowDataPacket[]>('SELECT payload FROM broadcast_state WHERE id = 1');
+    return rows[0]?.payload ?? null;
+  }
+
+  async saveBroadcastState(payload: string): Promise<void> {
+    if (!this.isUsingMySQL || !this.pool) throw new Error('MySQL is required for broadcast storage.');
+    await this.pool.query('INSERT INTO broadcast_state (id, payload) VALUES (1, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)', [payload]);
+  }
+
   async initialize(): Promise<void> {
     console.log('[Database] Initializing database service...');
 
@@ -110,6 +121,9 @@ class DatabaseService {
   private async initMySQLTables() {
     if (!this.pool) return;
     const queries = [
+      `CREATE TABLE IF NOT EXISTS broadcast_state (
+        id TINYINT PRIMARY KEY, payload LONGTEXT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
       `CREATE TABLE IF NOT EXISTS upload_assets (
         asset_key CHAR(64) PRIMARY KEY, upload_path VARCHAR(512) NOT NULL UNIQUE,
         mime_type VARCHAR(127) NOT NULL, byte_size INT UNSIGNED NOT NULL

@@ -97,7 +97,7 @@ async function bootstrap() {
   app.use('/api/ai', aiRoutes);
   app.use('/api/bots', botRoutes);
   app.use('/api/broadcasts', broadcastRoutes);
-  broadcastService.initialize();
+  await broadcastService.initialize();
 
   // Telegram Webhook endpoint (for real Telegram Bot integration - Stage 3)
   app.post('/webhook/telegram', async (req, res) => {

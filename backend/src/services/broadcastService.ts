@@ -46,17 +46,33 @@ export function validateBroadcast(input: any): BroadcastInput {
   return data;
 }
 
+export interface BroadcastStorage {
+  load(): Promise<string | null>;
+  save(payload: string): Promise<void>;
+}
+
 export class BroadcastService {
   private items: Broadcast[] = [];
   private maintenance: Maintenance = { enabled: false, message: '🛠️ Hệ thống đang bảo trì. Vui lòng quay lại sau ít phút. Cảm ơn bạn!', notifyStart: false, notifyEnd: false };
   private busy = false;
-  constructor(private storageFile = filename, private delivery = (chatId: string, item: BroadcastInput) => telegramService.sendBroadcast(chatId, item), private interval = 1100) {}
-  initialize(startWorker = true) {
-    try {
-      const saved = JSON.parse(fs.readFileSync(this.storageFile, 'utf8'));
+  private writes: Promise<void> = Promise.resolve();
+  constructor(private storageFile = filename, private delivery = (chatId: string, item: BroadcastInput) => telegramService.sendBroadcast(chatId, item), private interval = 1100, private storage?: BroadcastStorage) {}
+  async initialize(startWorker = true) {
+    if (!this.storage && this.storageFile === filename && db.isMySQLActive()) {
+      this.storage = { load: () => db.loadBroadcastState(), save: payload => db.saveBroadcastState(payload) };
+    }
+    let payload = this.storage ? await this.storage.load() : null;
+    // Import the legacy file once, only if no durable state exists.
+    if (payload === null) {
+      try { payload = fs.readFileSync(this.storageFile, 'utf8'); }
+      catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+    }
+    if (payload !== null) {
+      const saved = JSON.parse(payload);
+      if (!Array.isArray(saved.items) || !saved.maintenance || saved.items.some((item: any) => !Array.isArray(item.recipients))) throw new Error('Invalid broadcast state.');
       this.items = saved.items;
       this.maintenance = saved.maintenance;
-    } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+    }
     // Never automatically resend a recipient whose delivery was interrupted.
     for (const item of this.items) {
       for (const recipient of item.recipients) if (recipient.status === 'sending') {
@@ -64,13 +80,19 @@ export class BroadcastService {
       }
       if (item.status === 'sending') item.status = 'queued';
     }
-    this.persist();
+    await this.persist();
     if (startWorker) setInterval(() => { void this.processQueue().catch((error) => console.error('[Broadcast]', error.message)); }, 1000).unref();
   }
-  private persist() {
-    fs.mkdirSync(path.dirname(this.storageFile), { recursive: true });
-    fs.writeFileSync(`${this.storageFile}.tmp`, JSON.stringify({ items: this.items, maintenance: this.maintenance }, null, 2));
-    fs.renameSync(`${this.storageFile}.tmp`, this.storageFile);
+  private persist(): Promise<void> {
+    const payload = JSON.stringify({ items: this.items, maintenance: this.maintenance }, null, 2);
+    const write = this.writes.then(async () => {
+      if (this.storage) { await this.storage.save(payload); return; }
+      fs.mkdirSync(path.dirname(this.storageFile), { recursive: true });
+      fs.writeFileSync(`${this.storageFile}.tmp`, payload);
+      fs.renameSync(`${this.storageFile}.tmp`, this.storageFile);
+    });
+    this.writes = write.catch(() => {});
+    return write;
   }
   list() { return this.items.map(({ recipients, ...item }) => ({ ...item, total: recipients.length, sent: recipients.filter(r => r.status === 'sent').length, failed: recipients.filter(r => ['failed', 'unknown'].includes(r.status)).length })); }
   detail(id: string) { const item = this.items.find(i => i.id === id); if (!item) throw new Error('Không tìm thấy thông báo.'); return item; }
@@ -101,14 +123,14 @@ export class BroadcastService {
     const recipients = await this.recipients(data.botId, data.audience);
     if (!recipients.length) throw new Error('Không có khách hàng phù hợp đã trò chuyện với bot này.');
     const item: Broadcast = { ...data, id: randomUUID(), createdAt: new Date().toISOString(), recipients, status: data.scheduledAt ? 'scheduled' : sendNow ? 'queued' : 'draft' };
-    this.items.unshift(item); this.persist(); return item;
+    this.items.unshift(item); await this.persist(); return item;
   }
-  action(id: string, action: string) {
+  async action(id: string, action: string) {
     const item = this.detail(id);
     if (action === 'send' && ['draft', 'scheduled'].includes(item.status)) { item.status = 'queued'; item.scheduledAt = null; }
     else if (action === 'cancel' && ['draft', 'scheduled', 'queued', 'sending'].includes(item.status)) item.status = 'cancelled';
     else throw new Error('Thao tác không phù hợp với trạng thái hiện tại.');
-    this.persist(); return item;
+    await this.persist(); return item;
   }
   async updateMaintenance(input: any) {
     if (typeof input?.enabled !== 'boolean' || typeof input.message !== 'string' || !input.message.trim() || input.message.length > 1000 || typeof input.notifyStart !== 'boolean' || typeof input.notifyEnd !== 'boolean') throw new Error('Cấu hình bảo trì không hợp lệ.');
@@ -117,7 +139,7 @@ export class BroadcastService {
     const notify = previous.enabled !== next.enabled && (next.enabled ? next.notifyStart : next.notifyEnd);
     // Prepare notification before changing maintenance state, so validation errors do not partially apply it.
     if (notify) await this.create({ title: next.enabled ? '🛠️ Thông báo bảo trì' : '✅ Hệ thống hoạt động trở lại', content: next.enabled ? next.message : 'Hệ thống đã hoạt động trở lại. Cảm ơn bạn đã chờ đợi!', botId: input.botId, audience: 'everyone', parseMode: '', imageUrl: '', buttonText: '', buttonUrl: '', scheduledAt: null }, true);
-    this.maintenance = next; this.persist(); return next;
+    this.maintenance = next; await this.persist(); return next;
   }
   async processQueue() {
     if (this.busy) return;
@@ -125,18 +147,18 @@ export class BroadcastService {
     try {
       const item = this.items.find(i => i.status === 'queued' || i.status === 'scheduled' && Date.parse(i.scheduledAt!) <= Date.now());
       if (!item) return;
-      item.status = 'sending'; this.persist();
+      item.status = 'sending'; await this.persist();
       for (const recipient of item.recipients) {
         if ((item.status as string) === 'cancelled') break;
         if (recipient.status !== 'pending') continue;
-        recipient.status = 'sending'; this.persist();
+        recipient.status = 'sending'; await this.persist();
         try { await this.delivery(recipient.chatId, item); recipient.status = 'sent'; }
         catch (error: any) { recipient.status = 'failed'; recipient.error = String(error.message || 'Gửi thất bại').slice(0, 300); }
-        this.persist();
+        await this.persist();
         await new Promise(resolve => setTimeout(resolve, this.interval));
       }
       if ((item.status as string) !== 'cancelled') item.status = item.recipients.some(r => r.status !== 'sent') ? 'partial' : 'completed';
-      this.persist();
+      await this.persist();
     } finally { this.busy = false; }
   }
 }

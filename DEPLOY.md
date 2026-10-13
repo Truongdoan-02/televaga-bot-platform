@@ -43,3 +43,9 @@ Mở URL Render: /health trả status ok, /login cho đăng nhập, /api/bots kh
 Render Free ngủ sau 15 phút không có truy cập; bot không nhận tin trong lúc ngủ. Không dùng thủ thuật giữ thức. JSON và tệp chỉ có trên ổ Render không được lưu bền. Uploads, avatar và media Telegram hiện được lưu trong MySQL theo các khối 1 MB, có cache local; vẫn đọc được sau restart/deploy. Dung lượng media dùng chung giới hạn 1 GB của MySQL Free, nên chỉ dùng cho demo nhỏ. Phiên đăng nhập mất khi backend khởi động lại.
 
 Tài liệu: https://render.com/docs/free và https://aiven.io/docs/products/mysql/concepts/mysql-free-tier
+
+### Broadcast history persistence
+
+Broadcast history, recipient delivery states, scheduled broadcasts, and maintenance settings are stored atomically in MySQL table `broadcast_state`. The legacy `data/broadcasts.json` file is imported only when no database state exists; local development without MySQL still uses the file. Database read/write errors are surfaced instead of silently falling back to ephemeral storage. Interrupted deliveries are marked unknown and are not automatically resent. Render Free sleep still delays scheduled delivery until the service resumes.
+
+Before deploying this migration to an existing disk-only service, run `node backend/scripts/migrateBroadcastHistory.cjs` while no broadcasts are sending. It saves a private backup and imports live API history into MySQL without overwriting existing durable history. Previously lost history cannot be reconstructed by this migration.
