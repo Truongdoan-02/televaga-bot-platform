@@ -63,17 +63,17 @@ class DatabaseService {
         
         // Connect to server to verify / create DB
         if (process.env.DB_AUTO_CREATE !== 'false') {
-        const rootConn = await mysql.createConnection({
-          host: config.database.host,
-          port: config.database.port,
-          user: config.database.user,
-          password: config.database.password,
-          connectTimeout: 3000,
-          ssl: config.database.ssl,
-        });
+          const rootConn = await mysql.createConnection({
+            host: config.database.host,
+            port: config.database.port,
+            user: config.database.user,
+            password: config.database.password,
+            connectTimeout: 3000,
+            ssl: config.database.ssl,
+          });
 
-        await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-        await rootConn.end();
+          await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+          await rootConn.end();
         }
 
         this.pool = mysql.createPool({

@@ -17,7 +17,7 @@ node backend/scripts/exportDemoDatabase.cjs
 
 SQL được lưu vào backend/data/backups (đã bị Git bỏ qua), lấy đủ schema và dữ liệu database trong backend/.env. Import SQL vào database Aiven **trống** bằng MySQL Workbench: tạo connection với thông số Aiven, SSL Verify Identity và CA certificate, rồi Data Import / Import from Self-Contained File. Chọn đúng database đích, không import lên database đang có dữ liệu. File schema.sql trong repo không có đủ schema bán hàng.
 
-Giữ nguyên khóa BOT_TOKEN_ENCRYPTION_KEY đang dùng. Nếu backend/.env không có khóa, khóa hiện tại nằm ở backend/data/bot-token.key; cần chuyển đúng khóa trước khi dùng bot đã mã hóa. Không tự thay bằng khóa mới khi đã import managed_bots. Có thể thêm lại bot thủ công trên database demo mới nếu không chuyển các token cũ.
+Giữ nguyên khóa BOT_TOKEN_ENCRYPTION_KEY đang dùng. Nếu backend/.env không có khóa, khóa hiện tại nằm ở backend/data/bot-token.key. Tôi đã chuẩn bị giá trị tương đương dạng base64: trong backend/data/backups/render-bot-key.env; sao chép giá trị sau dấu = vào biến BOT_TOKEN_ENCRYPTION_KEY trên Render. Tệp này là bí mật, không đưa vào Git hoặc chat. Không tự thay bằng khóa mới khi đã import managed_bots. Có thể thêm lại bot thủ công trên database demo mới nếu không chuyển các token cũ.
 
 ## 3. Render Free
 Đưa các thay đổi lên repository GitHub, sau đó Render → New → Blueprint → chọn repository → render.yaml. Cấu hình chỉ tạo một web service plan free, không tạo database trả phí. Auto deploy đang tắt để chủ động kiểm soát chuyển bot.

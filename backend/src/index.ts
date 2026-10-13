@@ -26,6 +26,7 @@ async function bootstrap() {
   try {
     await bnkDataService.initialize();
   } catch (error) {
+    if (process.env.BNK_REQUIRED === 'true') throw error;
     console.error('[BNK] Business-data integration is unavailable:', error instanceof Error ? error.message : error);
   }
 
