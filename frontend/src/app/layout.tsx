@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Demo_TeleVaga – Quản lý hội thoại Telegram tích hợp AI',
+  title: 'Hệ Thống TeleVaga',
   description:
     'Hệ thống quản lý hội thoại Telegram thông minh với AI tóm tắt, gợi ý câu trả lời và trợ lý AI tích hợp trực tiếp vào giao diện.',
   keywords: ['telegram', 'quản lý chat', 'AI CSKH', 'TeleVaga', 'Gemini AI'],
