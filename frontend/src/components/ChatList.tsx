@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { AdminLogoutButton } from './AdminGate';
 import { Chat, ManagedBot } from '@/types';
 import { getMessageContent } from './MessageText';
 import { Bell, ArrowLeft, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
@@ -364,6 +365,7 @@ export default function ChatList({
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tg-text-primary)' }}>Demo_TeleVaga</div>
           <div style={{ fontSize: 10, color: 'var(--tg-text-muted)' }}>AI-Powered</div>
         </div>
+        <AdminLogoutButton />
       </div>
     </aside>
   );

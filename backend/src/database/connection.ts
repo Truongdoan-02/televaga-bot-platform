@@ -62,16 +62,19 @@ class DatabaseService {
         console.log(`[Database] Attempting connection to MySQL (${config.database.host}:${config.database.port})...`);
         
         // Connect to server to verify / create DB
+        if (process.env.DB_AUTO_CREATE !== 'false') {
         const rootConn = await mysql.createConnection({
           host: config.database.host,
           port: config.database.port,
           user: config.database.user,
           password: config.database.password,
           connectTimeout: 3000,
+          ssl: config.database.ssl,
         });
 
         await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         await rootConn.end();
+        }
 
         this.pool = mysql.createPool({
           host: config.database.host,
@@ -79,6 +82,7 @@ class DatabaseService {
           user: config.database.user,
           password: config.database.password,
           database: config.database.database,
+          ssl: config.database.ssl,
           waitForConnections: true,
           connectionLimit: 10,
           queueLimit: 0,
@@ -92,8 +96,11 @@ class DatabaseService {
         return;
       }
     } catch (err: any) {
+      if (process.env.DB_REQUIRED === 'true') throw err;
       console.warn(`[Database]  MySQL connection unavailable (${err.message}).`);
     }
+
+    if (process.env.DB_REQUIRED === 'true') throw new Error('MySQL is required for this deployment.');
 
     // Fallback to local persistent JSON DB
     console.log('[Database] ℹ  Falling back to persistent Local JSON Database.');

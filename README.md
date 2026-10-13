@@ -224,6 +224,6 @@ Sau khi build, chạy `npm.cmd start` trong mỗi thư mục tương ứng để
 
 ## Phạm vi vận hành
 
-API quản trị hiện chưa có lớp đăng nhập và phân quyền tài khoản. CORS giới hạn nguồn gọi từ trình duyệt, không phải cơ chế xác thực. Cần bổ sung kiểm soát truy cập trước khi mở API quản trị ra Internet.
+Trang quản trị yêu cầu đăng nhập tại `/login`. Cấu hình `ADMIN_EMAIL` và `ADMIN_PASSWORD` trong `backend/.env` (ban đầu: `admin@gmail.com` / `123456`); thay mật khẩu trước khi public. API quản trị và Socket.IO kiểm tra cookie HttpOnly, phiên hết hạn sau 8 giờ. Đăng xuất thu hồi phiên và ngắt socket; khởi động lại backend yêu cầu đăng nhập lại. `CLIENT_URL` phải khớp chính xác origin frontend. Nếu frontend/backend khác site, dùng HTTPS với `AUTH_COOKIE_SECURE=true`, `AUTH_COOKIE_SAME_SITE=none`; ưu tiên cùng site để tránh chặn cookie bên thứ ba. URL `/uploads` vẫn công khai để Telegram tải ảnh broadcast. Chạy `npm.cmd run test:auth` trong backend để kiểm thử đăng nhập.
 
 Sao lưu MySQL, `backend/data` và khóa mã hóa bot khi chuyển môi trường. Nội dung tin nhắn, hồ sơ khách, broadcast và tệp tải lên có thể nằm ở các nơi lưu trữ khác nhau.

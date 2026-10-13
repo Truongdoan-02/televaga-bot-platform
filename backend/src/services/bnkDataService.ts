@@ -43,7 +43,7 @@ class BnkDataService {
     });
     const required = [
       'products', 'customers', 'channel_connections', 'customer_channels', 'conversations',
-      'orders', 'support_requests', 'employees', 'employee_shifts', 'bot_buttons', 'button_events', 'faq_articles',
+      'orders', 'order_items', 'support_requests', 'employees', 'employee_shifts', 'bot_buttons', 'button_events', 'faq_articles',
     ];
     const [rows] = await pool.query<mysql.RowDataPacket[]>(
       'SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = DATABASE() AND TABLE_NAME IN (?)',

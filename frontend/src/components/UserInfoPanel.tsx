@@ -15,7 +15,7 @@ interface UserInfoPanelProps {
 }
 
 type InfoTab = 'members' | 'media' | 'files' | 'links' | 'music' | 'gif' | 'voice';
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 const AVATAR_COLORS = ['#4f81c7', '#43a89f', '#c05c7e', '#7c62b5', '#e07654', '#6ab04c'];
 const displayName = (user: User) => [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
 const initials = (title: string) => title.trim().split(/\s+/).map((word) => word[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';

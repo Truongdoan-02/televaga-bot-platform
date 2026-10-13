@@ -1,4 +1,5 @@
 import express from 'express';
+import { adminSession, createAuthRouter, requireAdmin, requireTrustedOrigin } from './services/adminAuth.js';
 import { createServer } from 'http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +41,23 @@ async function bootstrap() {
     },
   });
 
+  io.use((socket, next) => {
+    const session = adminSession(socket.request.headers.cookie);
+    if (!session || socket.handshake.headers.origin !== config.clientUrl) { next(new Error('Unauthorized')); return; }
+    socket.data.adminSession = session;
+    next();
+  });
+  io.on('connection', socket => {
+    const timer = setInterval(() => {
+      if (!adminSession(socket.request.headers.cookie)) socket.disconnect(true);
+    }, 10_000);
+    socket.use((_packet, next) => {
+      if (!adminSession(socket.request.headers.cookie)) { socket.disconnect(true); next(new Error('Unauthorized')); return; }
+      next();
+    });
+    socket.on('disconnect', () => clearInterval(timer));
+  });
+
   // Initialize socket service
   socketService.init(io);
 
@@ -48,7 +66,12 @@ async function bootstrap() {
     origin: config.clientUrl,
     credentials: true,
   }));
+  app.use('/api', requireTrustedOrigin);
   app.use(express.json());
+  app.use('/api/auth', createAuthRouter(session => {
+    for (const socket of io.sockets.sockets.values()) if (socket.data.adminSession === session) socket.disconnect(true);
+  }));
+  app.use('/api', requireAdmin);
   app.use('/api/chats/:chatId/messages/media', express.raw({ type: () => true, limit: '50mb' }));
   app.use('/uploads', express.static(uploadsDirectory));
 

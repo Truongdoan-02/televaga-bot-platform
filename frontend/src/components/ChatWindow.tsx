@@ -8,7 +8,7 @@ import {
 import { Chat, Message } from '@/types';
 import MessageText from './MessageText';
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 const REACTIONS = ['❤️', '👍', '👎', '🔥', '🥰', '👏', '😁'];
 const CHAT_EMOJIS = ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','😇','🙂','🙃','😉','😍','🥰','😘','😋','😛','🤗','🤔','🤨','😐','🙄','😏','😴','🥳','😭','😤','😡','🤯','😎','🤓','🥺','😱','🤝','🙏','👏','🙌','👍','👎','👌','✌️','🤞','💪','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💕','💞','💯','🔥','✨','🎉','🎂','🌹','🌸','☀️','🌙','⭐','⚡','☕','🍰','🍕','🍻','✅','❌','💡','💬','📌','🎁','🚀','🐱','🐶','🌈'];

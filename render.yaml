@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: televaga-demo
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: node deploy/build.cjs
+    startCommand: node deploy/server.cjs
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_BACKEND_URL
+        value: ""
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: ADMIN_EMAIL
+        value: admin@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+      - key: AUTH_COOKIE_SAME_SITE
+        value: lax
+      - key: BOT_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: DB_SSL_CA
+        sync: false
+      - key: DB_AUTO_CREATE
+        value: "false"
+      - key: DB_REQUIRED
+        value: "true"
+      - key: BNK_REQUIRED
+        value: "true"
+      - key: TELEGRAM_MODE
+        value: mock
+      - key: TELEGRAM_BOT_TOKEN
+        value: ""

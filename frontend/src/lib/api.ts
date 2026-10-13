@@ -1,9 +1,11 @@
 import { Chat, Message, User, ManagedBot, BotActionButton, AISummary, AISuggestion } from '@/types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+import { authenticatedFetch } from './auth';
+
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 export const broadcastImageSrc = (imageUrl: string) => imageUrl.startsWith('/uploads/') ? `${BASE_URL}${imageUrl}` : imageUrl;
 export const uploadBroadcastImage = async (file: File): Promise<{ imageUrl: string }> => {
-  const response = await fetch(`${BASE_URL}/api/broadcasts/images`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+  const response = await authenticatedFetch(`${BASE_URL}/api/broadcasts/images`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
   if (response.status === 413) throw new Error('Ảnh tối đa 10 MB.');
   const result = await response.json();
   if (!result.success) throw new Error(result.error || 'Không tải được ảnh.');
@@ -29,7 +31,7 @@ export const broadcastAction = (id: string, action: string) => apiFetch<Broadcas
 export const updateMaintenance = (settings: MaintenanceSettings, botId: string) => apiFetch<MaintenanceSettings>('/api/broadcasts/maintenance', { method: 'PUT', body: JSON.stringify({ ...settings, botId }) });
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await authenticatedFetch(`${BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -108,7 +110,7 @@ export const fetchMessages = (chatId: string): Promise<Message[]> =>
   apiFetch<Message[]>(`/api/chats/${chatId}/messages`);
 
 export const uploadChatMedia = async (chatId: string, file: File, caption = ''): Promise<Message> => {
-  const response = await fetch(`${BASE_URL}/api/chats/${chatId}/messages/media`, {
+  const response = await authenticatedFetch(`${BASE_URL}/api/chats/${chatId}/messages/media`, {
     method: 'POST',
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name), 'X-Message-Caption': encodeURIComponent(caption) },
     body: file,

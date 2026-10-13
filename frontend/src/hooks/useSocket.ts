@@ -4,13 +4,19 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Message } from '@/types';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 let globalSocket: Socket | null = null;
+
+export function disconnectAdminSocket() {
+  globalSocket?.disconnect();
+  globalSocket = null;
+}
 
 function getSocket(): Socket {
   if (!globalSocket || !globalSocket.connected) {
     globalSocket = io(BACKEND_URL, {
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
