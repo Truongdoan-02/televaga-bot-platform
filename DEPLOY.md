@@ -1,7 +1,7 @@
 # Demo miễn phí: Render + Aiven MySQL
 
 ## Trạng thái
-Cấu hình đã chuẩn bị; cần tài khoản Render/Aiven, import database và đưa mã nguồn lên GitHub trước khi có URL online.
+Đã triển khai demo tại https://televaga-demo.onrender.com/login trên Render Free, kết nối MySQL Aiven qua TLS. Database nghiệp vụ đã được chuyển; kiểm thử online đăng nhập, API, WebSocket và đăng xuất đều đạt. Hai bot cloud đang tắt; dừng backend local trước khi bật bot cùng token trên cloud. Dashboard: https://dashboard.render.com/web/srv-db6q7g0m7kps73au0bug.
 
 ## 1. Tạo MySQL Free
 Đăng nhập https://console.aiven.io/ và tạo **MySQL – Free**, tránh chọn gói trial/paid. Lấy host, port, user, password, database và CA certificate từ Overview. Không đưa thông tin bí mật vào Git hoặc chat.
