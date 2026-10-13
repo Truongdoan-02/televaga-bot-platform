@@ -1,7 +1,7 @@
 import path from 'node:path';
+import { storeUpload } from './uploadStore.js';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
 
 const directory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/uploads');
 export const isBroadcastImage = (value: string) => /^\/uploads\/broadcast_[a-f0-9-]{36}\.(jpg|png|webp)$/.test(value);
@@ -16,7 +16,6 @@ export async function storeBroadcastImage(data: Buffer) {
     : data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP' ? 'webp' : null;
   if (!extension) throw new Error('Chọn ảnh JPG, PNG hoặc WebP.');
   const imageUrl = `/uploads/broadcast_${randomUUID()}.${extension}`;
-  await mkdir(directory, { recursive: true });
-  await writeFile(broadcastImagePath(imageUrl), data);
+  await storeUpload(imageUrl, data);
   return imageUrl;
 }

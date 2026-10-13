@@ -40,6 +40,6 @@ DB_REQUIRED và BNK_REQUIRED bật: deploy sẽ báo lỗi nếu MySQL/TLS khôn
 Mở URL Render: /health trả status ok, /login cho đăng nhập, /api/bots không cookie trả 401. Kiểm tra bot, sản phẩm và tạo đơn thử bằng dữ liệu thử nghiệm. Dừng backend local trước khi bật bot cùng token trên Render để tránh hai tiến trình polling. TELEGRAM_MODE=mock chỉ tắt bot môi trường; bot quản lý đã bật trong database có thể tự polling khi khởi động.
 
 ## Giới hạn
-Render Free ngủ sau 15 phút không có truy cập; bot không nhận tin trong lúc ngủ. Không dùng thủ thuật giữ thức. JSON, uploads và tệp cục bộ không được lưu bền sau restart/deploy. MySQL trên Aiven giữ sản phẩm/đơn hàng, nhưng không giữ uploads trên Render. Đây là demo nhỏ; chưa cấu hình object storage. Phiên đăng nhập mất khi backend khởi động lại.
+Render Free ngủ sau 15 phút không có truy cập; bot không nhận tin trong lúc ngủ. Không dùng thủ thuật giữ thức. JSON và tệp chỉ có trên ổ Render không được lưu bền. Uploads, avatar và media Telegram hiện được lưu trong MySQL theo các khối 1 MB, có cache local; vẫn đọc được sau restart/deploy. Dung lượng media dùng chung giới hạn 1 GB của MySQL Free, nên chỉ dùng cho demo nhỏ. Phiên đăng nhập mất khi backend khởi động lại.
 
 Tài liệu: https://render.com/docs/free và https://aiven.io/docs/products/mysql/concepts/mysql-free-tier

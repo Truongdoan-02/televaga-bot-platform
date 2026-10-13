@@ -110,6 +110,14 @@ class DatabaseService {
   private async initMySQLTables() {
     if (!this.pool) return;
     const queries = [
+      `CREATE TABLE IF NOT EXISTS upload_assets (
+        asset_key CHAR(64) PRIMARY KEY, upload_path VARCHAR(512) NOT NULL UNIQUE,
+        mime_type VARCHAR(127) NOT NULL, byte_size INT UNSIGNED NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS upload_asset_chunks (
+        asset_key CHAR(64) NOT NULL, part_index INT UNSIGNED NOT NULL, content MEDIUMBLOB NOT NULL,
+        PRIMARY KEY (asset_key, part_index)
+      )`,
       `CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(64) PRIMARY KEY,
         telegram_id VARCHAR(64) UNIQUE,
@@ -976,6 +984,33 @@ class DatabaseService {
 
   async getAISuggestions(chatId: string): Promise<AISuggestion[] | null> {
     return this.localStore.suggestions.find((s) => s.chatId === chatId)?.suggestions || null;
+  }
+
+  async saveUploadAsset(uploadPath: string, data: Buffer, mimeType: string): Promise<void> {
+    if (!this.isUsingMySQL || !this.pool) return;
+    const key = createHash('sha256').update(uploadPath).digest('hex');
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query('INSERT INTO upload_assets (asset_key, upload_path, mime_type, byte_size) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type), byte_size=VALUES(byte_size)', [key, uploadPath, mimeType, data.length]);
+      await connection.query('DELETE FROM upload_asset_chunks WHERE asset_key = ?', [key]);
+      for (let offset = 0, part = 0; offset < data.length; offset += 1024 * 1024, part++) {
+        await connection.query('INSERT INTO upload_asset_chunks (asset_key, part_index, content) VALUES (?, ?, ?)', [key, part, data.subarray(offset, offset + 1024 * 1024)]);
+      }
+      await connection.commit();
+    } catch (error) { await connection.rollback(); throw error; }
+    finally { connection.release(); }
+  }
+
+  async getUploadAsset(uploadPath: string): Promise<{ data: Buffer; mimeType: string } | null> {
+    if (!this.isUsingMySQL || !this.pool) return null;
+    const key = createHash('sha256').update(uploadPath).digest('hex');
+    const [assets]: any = await this.pool.query('SELECT mime_type, byte_size FROM upload_assets WHERE asset_key = ?', [key]);
+    if (!assets.length) return null;
+    const [parts]: any = await this.pool.query('SELECT content FROM upload_asset_chunks WHERE asset_key = ? ORDER BY part_index', [key]);
+    const data = Buffer.concat(parts.map((part: any) => part.content));
+    if (data.length !== Number(assets[0].byte_size)) throw new Error('Stored upload is incomplete');
+    return { data, mimeType: assets[0].mime_type };
   }
 
   isMySQLActive(): boolean {

@@ -1,8 +1,7 @@
 import express from 'express';
+import { serveUpload } from './services/uploadStore.js';
 import { adminSession, createAuthRouter, requireAdmin, requireTrustedOrigin } from './services/adminAuth.js';
 import { createServer } from 'http';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { config } from './config/index.js';
@@ -18,7 +17,6 @@ import { broadcastService } from './services/broadcastService.js';
 import { telegramService } from './services/telegramService.js';
 import { bnkDataService } from './services/bnkDataService.js';
 
-const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data/uploads');
 
 async function bootstrap() {
   // Initialize database
@@ -68,13 +66,13 @@ async function bootstrap() {
     credentials: true,
   }));
   app.use('/api', requireTrustedOrigin);
+  app.use('/api/chats/:chatId/messages/media', requireAdmin, express.raw({ type: () => true, limit: '50mb' }));
   app.use(express.json());
   app.use('/api/auth', createAuthRouter(session => {
     for (const socket of io.sockets.sockets.values()) if (socket.data.adminSession === session) socket.disconnect(true);
   }));
   app.use('/api', requireAdmin);
-  app.use('/api/chats/:chatId/messages/media', express.raw({ type: () => true, limit: '50mb' }));
-  app.use('/uploads', express.static(uploadsDirectory));
+  app.use('/uploads', serveUpload);
 
   // Health check
   app.get('/health', (_req, res) => {

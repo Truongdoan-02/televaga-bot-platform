@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { storeUpload } from '../services/uploadStore.js';
 import { db } from '../database/connection.js';
 import { telegramService } from '../services/telegramService.js';
 
@@ -125,7 +124,6 @@ export const forwardMessage = async (req: Request, res: Response): Promise<void>
 
 
 
-const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/uploads');
 
 export const uploadMessageMedia = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -160,8 +158,7 @@ export const uploadMessageMedia = async (req: Request, res: Response): Promise<v
     }
     const extension = path.extname(originalName);
     const storedName = randomUUID() + extension;
-    await mkdir(uploadsDirectory, { recursive: true });
-    await writeFile(path.join(uploadsDirectory, storedName), fileData);
+    await storeUpload('/uploads/' + storedName, fileData, mimeType);
 
     const mediaType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'document';
     const message = await telegramService.sendMedia(chatId, {

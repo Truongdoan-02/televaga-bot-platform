@@ -1,9 +1,9 @@
+import { telegramMedia } from './telegramMedia.js';
+import { storeUpload, readUpload } from './uploadStore.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { isBroadcastImage, broadcastImagePath } from './broadcastImages.js';
+import { isBroadcastImage } from './broadcastImages.js';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { config } from '../config/index.js';
 import { db } from '../database/connection.js';
 import { bnkDataService } from './bnkDataService.js';
@@ -53,7 +53,6 @@ class TelegramService {
     return this.managedRuntime.get(botId) || { polling: false };
   }
   private readonly avatarCache = new Map<string, string | null>();
-  private readonly avatarDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/uploads/telegram-avatars');
 
   getStatus() {
     const runningManaged = [...this.managedRuntime.values()].filter((runtime) => runtime.polling).length;
@@ -197,9 +196,11 @@ class TelegramService {
       this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false, lastError: error instanceof Error ? error.message : 'Telegram connection failed' });
       if (bot && runner.active) await db.updateManagedBot(botId, bot.name, undefined, { status: 'error', lastError: error instanceof Error ? error.message : 'Telegram connection failed', isEnabled: false });
     } finally {
-      this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false });
-      if (this.managedPollers.get(botId) === runner) this.managedPollers.delete(botId);
-      if (runner.active) void this.syncManagedBots();
+      if (this.managedPollers.get(botId) === runner) {
+        this.managedPollers.delete(botId);
+        this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false });
+        if (runner.active) void this.syncManagedBots();
+      }
     }
   }
 
@@ -239,9 +240,8 @@ class TelegramService {
       const extension = path.extname(file.file_path).toLowerCase();
       const safeExtension = ['.jpg', '.jpeg', '.png', '.webp'].includes(extension) ? extension : '.jpg';
       const filename = createHash('sha256').update(ownerKey + ':' + fileId).digest('hex') + safeExtension;
-      await mkdir(this.avatarDirectory, { recursive: true });
-      await writeFile(path.join(this.avatarDirectory, filename), Buffer.from(await response.arrayBuffer()));
-      const avatarUrl = config.telegram.publicBackendUrl + '/uploads/telegram-avatars/' + filename;
+      const avatarUrl = '/uploads/telegram-avatars/' + filename;
+      await storeUpload(avatarUrl, Buffer.from(await response.arrayBuffer()));
       this.avatarCache.set(cacheKey, avatarUrl);
       return avatarUrl;
     } catch (error) {
@@ -732,7 +732,9 @@ class TelegramService {
         for (const [key, value] of Object.entries(body)) {
           if (key !== 'photo') form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
         }
-        const image = await readFile(broadcastImagePath(input.imageUrl));
+        const asset = await readUpload(input.imageUrl);
+        if (!asset) throw new Error('Broadcast image is unavailable');
+        const image = asset.data;
         const extension = path.extname(input.imageUrl).slice(1);
         form.append('photo', new Blob([new Uint8Array(image)], { type: extension === 'jpg' ? 'image/jpeg' : `image/${extension}` }), path.basename(input.imageUrl));
         requestBody = form; headers = undefined;
@@ -861,7 +863,8 @@ class TelegramService {
     const isTopicService = Boolean(topicCreated || topicEdited);
     if ((!fromUser || fromUser.is_bot) && !isTopicService) return;
     const hasContact = Boolean(tgMessage.contact);
-    if (typeof tgMessage.text !== 'string' && !isTopicService && !hasContact) return;
+    const attachment = telegramMedia(tgMessage);
+    if (typeof tgMessage.text !== 'string' && !isTopicService && !hasContact && !attachment) return;
 
     const tgChatId = String(tgMessage.chat.id);
     const timestamp = new Date((tgMessage.date || Date.now() / 1000) * 1000).toISOString();
@@ -975,22 +978,42 @@ class TelegramService {
       await this.sendMessage(destination.id, await this.getFlowPrompt(botContext.botId, linkPromptKeys[linkResult]), { replyMarkup: { remove_keyboard: true } });
       return;
     }
-    if (typeof tgMessage.text !== 'string') return;
+    if (typeof tgMessage.text !== 'string' && !attachment) return;
     const incomingMessage: Message = {
       id: `tg_${messageOwnerKey}_${tgChatId}_${tgMessage.message_id}`,
       chatId: destination.id,
       senderId: user.id,
       senderName: [fromUser.first_name, fromUser.last_name].filter(Boolean).join(' '),
-      text: tgMessage.text,
-      type: 'text',
+      text: tgMessage.text || tgMessage.caption || attachment?.fileName || '',
+      type: attachment?.type || 'text',
+      ...(attachment ? { fileName: attachment.fileName, fileSize: String(attachment.fileSize || '') } : {}),
       isOutgoing: false,
       status: 'delivered',
       createdAt: timestamp,
     };
     if (await db.getMessageById(destination.id, incomingMessage.id)) return;
+    if (attachment) {
+      try {
+        const file = await this.apiCall<{ file_path?: string }>('getFile', { file_id: attachment.fileId }, undefined, botToken);
+        if (!file.file_path) throw new Error('Telegram file path unavailable');
+        const response = await fetch('https://api.telegram.org/file/bot' + botToken + '/' + file.file_path, { signal: AbortSignal.timeout(30000) });
+        if (!response.ok) throw new Error('Telegram file download failed');
+        const data = Buffer.from(await response.arrayBuffer());
+        const extension = path.extname(attachment.fileName) || path.extname(file.file_path);
+        const safeExtension = /^\.[a-zA-Z0-9]{1,10}$/.test(extension) ? extension.toLowerCase() : '';
+        const url = '/uploads/telegram_' + createHash('sha256').update(ownerKey + ':' + attachment.fileId).digest('hex') + safeExtension;
+        await storeUpload(url, data, attachment.mimeType);
+        incomingMessage.mediaUrl = url;
+        incomingMessage.fileSize = String(data.length);
+      } catch {
+        // Preserve the message and keep polling even if Telegram cannot supply the file.
+        incomingMessage.text += '\nKhông tải được tệp từ Telegram.';
+      }
+    }
     await db.addMessage(incomingMessage);
     socketService.broadcastNewMessage(destination.id, incomingMessage, destination, user);
     if (destination.parentChatId) socketService.broadcastChatStructureChanged(destination.parentChatId);
+    if (attachment) return;
     const command = tgMessage.text.trim().match(/^\/(start|cancel)(?:@\w+)?(?:\s|$)/i)?.[1]?.toLowerCase();
     if (botContext && command) {
       if (tgMessage.chat.type === 'private') {

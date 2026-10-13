@@ -1,5 +1,7 @@
 'use client';
 
+import { assetUrl } from '@/lib/assets';
+
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AdminLogoutButton } from './AdminGate';
@@ -118,7 +120,7 @@ const ChatItem = React.memo(function ChatItem({ chat, isActive, onClick, onConte
         {chat.topicName ? (
           <div className="avatar-placeholder" style={{ background: '#46566b' }}>#</div>
         ) : chat.avatarUrl ? (
-          <img className="avatar-img" src={chat.avatarUrl} alt={chat.title} />
+          <img className="avatar-img" src={assetUrl(chat.avatarUrl)} alt={chat.title} />
         ) : (
           <div className="avatar-placeholder" style={{ background: color }}>
             {chat.type === 'group' ? '👥' : initials}
@@ -276,7 +278,7 @@ export default function ChatList({
       {forumGroup ? <>
         <div className="sidebar-forum-heading" style={{ minHeight: 64, flex: '0 0 64px', display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px', borderBottom: '1px solid var(--tg-border)', boxSizing: 'border-box' }}>
           <div className="sidebar-forum-avatar" style={{ width: 38, height: 38, flex: '0 0 38px', overflow: 'hidden', display: 'grid', placeItems: 'center', borderRadius: '50%', background: 'var(--tg-bg-active)', fontSize: 19 }}>
-            {forumGroup.avatarUrl ? <img src={forumGroup.avatarUrl} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>👥</span>}
+            {forumGroup.avatarUrl ? <img src={assetUrl(forumGroup.avatarUrl)} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>👥</span>}
           </div>
           <button type="button" className="icon-btn" title="Quay lại danh sách hội thoại" onClick={onCloseTopics} style={{ width: 30, height: 30, flex: '0 0 30px' }}><ArrowLeft size={18} /></button>
           <div className="sidebar-forum-title" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}><strong style={{ overflow: 'hidden', fontSize: 14, fontWeight: 650, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{forumGroup.title}</strong><span style={{ color: 'var(--tg-text-muted)', fontSize: 11 }}>{forumTopics.length} topic</span></div>

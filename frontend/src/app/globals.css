@@ -784,11 +784,11 @@ body {
 }
 
 .bubble-with-image {
-  width: min-content;
+  width: min(384px, 65vw);
+  max-width: 100%;
 }
 
 .bubble-with-image .bubble-text {
-  contain: inline-size;
   overflow-wrap: anywhere;
 }
 
