@@ -4,6 +4,9 @@ const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 10000);
 const backendPort = Number(process.env.INTERNAL_BACKEND_PORT || 5001);
 const frontendPort = Number(process.env.INTERNAL_FRONTEND_PORT || 3001);
+if (![port, backendPort, frontendPort].every(value => Number.isInteger(value) && value > 0 && value <= 65535) || new Set([port, backendPort, frontendPort]).size !== 3) {
+  throw new Error('PORT and internal service ports must be valid and distinct.');
+}
 const origin = process.env.RENDER_EXTERNAL_URL || process.env.DEMO_PUBLIC_URL || 'http://localhost:' + port;
 const backend = 'http://127.0.0.1:' + backendPort;
 const frontend = 'http://127.0.0.1:' + frontendPort;
@@ -29,7 +32,9 @@ function launch(script, args, directory, childEnv) {
   child.on('error', error => { console.error(error.message); stop(1); });
   child.on('exit', code => { if (!stopping) { console.error(directory + ' stopped (' + code + ')'); stop(1); } });
 }
+server.on('error', error => { console.error('[Gateway] HTTP listener failed:', error.message); stop(1); });
 server.listen(port, '0.0.0.0', async () => {
+  console.log('[Gateway] Listening on 0.0.0.0:' + port + ' (public HTTP), backend=' + backendPort + ', frontend=' + frontendPort);
   launch('dist/index.js', [], 'backend', { ...env, PORT: String(backendPort) });
   launch('node_modules/next/dist/bin/next', ['start', '-p', String(frontendPort), '-H', '127.0.0.1'], 'frontend', { ...env, PORT: String(frontendPort) });
   const deadline = Date.now() + 120000;
