@@ -6,16 +6,17 @@ import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AdminLogoutButton } from './AdminGate';
 import { Chat, ManagedBot } from '@/types';
+import SectionNavigation from './SectionNavigation';
 import { getMessageContent } from './MessageText';
-import { Bell, ArrowLeft, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
+import { Bell, ArrowLeft, Warehouse, Truck, Package, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
 
 interface ChatListProps {
   chats: Chat[];
   managedBots: ManagedBot[];
   selectedBotId: string;
   onBotChange: (botId: string) => void;
-  activeSection: 'chats' | 'bots' | 'notifications';
-  onSectionChange: (section: 'chats' | 'bots' | 'notifications') => void;
+  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory';
+  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory') => void;
   activeChatId: string | null;
   category: string;
   searchQuery: string;
@@ -235,11 +236,7 @@ export default function ChatList({
 
   return (
     <aside className="sidebar">
-      <div className="section-switch" role="tablist" aria-label="Khu vực làm việc" style={{ display: 'flex', flexShrink: 0, gap: 5, margin: '10px 12px 0', padding: 4, border: '1px solid var(--tg-border)', borderRadius: 12, background: 'var(--tg-bg-tertiary)' }}>
-        <button type="button" role="tab" aria-selected={activeSection === 'bots'} className={activeSection === 'bots' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('bots'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'bots' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'bots' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bot size={16} /> Quản lý bot</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'chats'} className={activeSection === 'chats' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('chats'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'chats' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'chats' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><MessageSquare size={16} /> Chat</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'notifications'} className={activeSection === 'notifications' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('notifications'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'notifications' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'notifications' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bell size={16} /> Thông báo</button>
-      </div>
+      <SectionNavigation activeSection={activeSection} onSectionChange={(section) => { setContextMenu(null); onSectionChange(section); }} />
       {activeSection === 'chats' ? <>
       {/* Header */}
       <div className="sidebar-header">
@@ -315,7 +312,7 @@ export default function ChatList({
           chats.filter((chat) => !chat.parentChatId).map((chat) => renderChat(chat))
         )}
       </div>}
-      </> : <div className="bot-sidebar-hint">{activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
+      </> : <div className="bot-sidebar-hint">{activeSection === 'inventory' ? <Warehouse size={25} /> : activeSection === 'suppliers' ? <Truck size={25} /> : activeSection === 'products' ? <Package size={25} /> : activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'inventory' ? 'Quản lý tồn kho' : activeSection === 'suppliers' ? 'Nhà cung cấp' : activeSection === 'products' ? 'Quản lý sản phẩm' : activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'inventory' ? 'Nhập, xuất, kiểm kê và lịch sử kho' : activeSection === 'suppliers' ? 'Đối tác, liên hệ và thông tin hợp tác' : activeSection === 'products' ? 'Danh mục, giá và tình trạng sản phẩm' : activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
 
       {contextMenu && createPortal(
         <div onClick={() => setContextMenu(null)} onContextMenu={(event) => { event.preventDefault(); setContextMenu(null); }} style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>

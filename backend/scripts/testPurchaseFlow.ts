@@ -10,7 +10,7 @@ import { socketService } from '../src/services/socketService.js';
 const connection = await mysql.createConnection(config.database);
 const service = bnkDataService as any;
 try {
-  for (const table of ['customers', 'channel_connections', 'customer_channels', 'conversations', 'products', 'orders', 'order_items']) {
+  for (const table of ['customers', 'channel_connections', 'customer_channels', 'conversations', 'products', 'product_inventory', 'inventory_transactions', 'inventory_orders', 'orders', 'order_items']) {
     const [ddl] = await connection.query<mysql.RowDataPacket[]>(`SHOW CREATE TABLE ${table}`);
     const temporaryDdl = String(ddl[0]['Create Table']).replace('CREATE TABLE', 'CREATE TEMPORARY TABLE')
       .split('\n').filter(line => !line.includes('FOREIGN KEY')).join('\n').replace(/,\n\)/, '\n)');
@@ -33,7 +33,8 @@ try {
   await connection.query("INSERT INTO customers (id, customer_code, name, phone) VALUES (1, 'TEST', 'Initial', '0900000000')");
   await connection.query("INSERT INTO channel_connections (id, connection_code, channel, display_name, external_account_id) VALUES (1, 'TEST', 'TELEGRAM', 'Test', 'bot')");
   await connection.query("INSERT INTO customer_channels (customer_id, connection_id, external_user_id, external_chat_id, verified_at) VALUES (1, 1, 'user', 'chat', NOW())");
-  await connection.query("INSERT INTO products (id, category_id, sku, name, price, stock_quantity, is_active) VALUES (1, 1, 'TEST', 'Test product', 100, 5, 1)");
+  await connection.query("INSERT INTO products (id, category_id, sku, name, price, is_active) VALUES (1, 1, 'TEST', 'Test product', 100, 1)");
+  await connection.query('INSERT INTO product_inventory(product_id,stock_quantity) VALUES (1,5)');
   const draft = () => bnkDataService.getPurchaseDraft('user', 'chat', 'bot');
   const input = (text: string) => bnkDataService.processPurchaseInput('user', 'chat', 'bot', text);
   const order = (d: NonNullable<Awaited<ReturnType<typeof draft>>>) => bnkDataService.createProductOrder({
@@ -103,12 +104,12 @@ try {
   await bnkDataService.startPurchaseDraft('user', 'chat', 'bot', 1);
   await input('Stock test'); await input('0945678901'); await input('Stock address'); await input('2');
   const stockDraft = (await draft())!;
-  await connection.query('UPDATE products SET stock_quantity = 1 WHERE id = 1');
+  await connection.query('UPDATE product_inventory SET stock_quantity=quantity_reserved+1 WHERE product_id=1');
   assert.equal((await order(stockDraft)).status, 'out_of_stock');
   const [counts] = await connection.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n FROM orders');
   assert.equal(counts[0].n, 2);
-  await connection.query('UPDATE products SET stock_quantity = 2 WHERE id = 1');
-  const [stock] = await connection.query<mysql.RowDataPacket[]>('SELECT stock_quantity FROM products WHERE id = 1');
+  await connection.query('UPDATE product_inventory SET stock_quantity=quantity_reserved+2 WHERE product_id=1');
+  const [stock] = await connection.query<mysql.RowDataPacket[]>('SELECT stock_quantity-quantity_reserved AS stock_quantity FROM product_inventory WHERE product_id=1');
   assert.equal(stock[0].stock_quantity, 2);
   // Cancel remains usable from the initial confirmation after entering edit mode.
   await bnkDataService.startPurchaseDraft('user', 'chat', 'bot', 1);
@@ -156,6 +157,15 @@ try {
     assert.equal(menuCount, 1);
     assert.equal(responses.length, 1);
     assert.ok(!responses.some(text => text.includes('Thông tin chưa hợp lệ')));
+    const shopPurchases:any[]=[];let shopLists=0;
+    stub(telegram,'beginProductPurchase',async(...args:any[])=>{shopPurchases.push(args);});
+    stub(telegram,'sendProductCards',async()=>{shopLists++;});
+    for(const [index,text] of ['/start buy_1','/start shop'].entries()){
+      await telegramService.handleWebhookUpdate({message:{message_id:200+index,text,from:{id:'user',first_name:'Test'},chat:{id:'chat',type:'private'}}},{botId:'managed-test',token:'test'});
+    }
+    assert.equal(shopPurchases.length,1);
+    assert.deepEqual(shopPurchases[0].slice(1,4),[1,'user','chat']);
+    assert.equal(shopLists,1);
   } finally { restores.reverse().forEach(restore => restore()); }
   console.log('PASS: purchase flow, recipients, edit, cancel, expiry, ownership, duplicate confirmation and stock.');
 } finally {

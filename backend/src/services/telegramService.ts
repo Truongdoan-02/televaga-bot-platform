@@ -7,6 +7,7 @@ import path from 'node:path';
 import { config } from '../config/index.js';
 import { db } from '../database/connection.js';
 import { bnkDataService } from './bnkDataService.js';
+import { shopCatalog,shopUrl,shopWebUrl } from './shopService.js';
 import { broadcastService, type BroadcastInput } from './broadcastService.js';
 import { Message, Chat, User } from '../types/index.js';
 import { socketService } from './socketService.js';
@@ -362,31 +363,35 @@ class TelegramService {
   }
 
   private async sendProductCards(chat: Chat, token: string): Promise<void> {
-    const products = await bnkDataService.getProducts();
-    if (!products.length) {
-      await this.sendMessage(chat.id, 'Hiện chưa có sản phẩm đang kinh doanh trong hệ thống.');
-      return;
+    const catalog=chat.botId?await shopCatalog(chat.botId):null;
+    const products=catalog?.products||[];
+    if(!products.length){await this.sendMessage(chat.id,'Hiện chưa có sản phẩm đang kinh doanh trong hệ thống.');return;}
+    const text=['🛍️ DANH SÁCH SẢN PHẨM',''];
+    for(const [index,product] of products.slice(0,8).entries()){
+      text.push('📦 '+(index+1)+'. '+product.name,'💰 Giá: '+product.price.toLocaleString('vi-VN')+' ₫','🏷️ '+product.quantity+' · '+(product.status==='in_stock'?'Còn hàng':'Hết hàng'),'');
     }
-    for (const product of products) {
-      const description = product.description.trim() || 'Thông tin đang được cập nhật.';
-      const purchaseIntent = uuidv4().replace(/-/g, '').slice(0, 12);
-      const text = [
-        `📦 ${product.name}`,
-        `ℹ️ Công dụng / thông tin: ${description}`,
-        `💰 Giá: ${product.price.toLocaleString('vi-VN')}₫`,
-      ].join('\n');
-      await this.sendMessage(chat.id, text, {
-        replyMarkup: {
-          inline_keyboard: [[
-            { text: '🔎 Chi tiết', callback_data: `product_detail:${product.id}` },
-            { text: '🛍️ Mua ngay', callback_data: `product_buy:${product.id}:${purchaseIntent}` },
-            { text: '🛒 Thêm vào giỏ', callback_data: `cart:add:${product.id}` },
-          ]],
-        },
-      });
-    }
+    if(products.length>8)text.push('Và '+(products.length-8)+' sản phẩm khác.');
+    text.push('Mở Shop để xem hình ảnh, chi tiết và mua sản phẩm.');
+    const url=shopUrl(chat.botId!);
+    const shopButton=chat.type==='direct'&&url.startsWith('https://')
+      ?{text:'🛒 Shop',web_app:{url}}
+      :{text:'🛒 Shop',url:chat.type!=='direct'&&catalog?.username?'https://t.me/'+catalog.username.replace(/^@/,'')+'?start=shop':url};
+    await this.sendMessage(chat.id,text.join('\n'),{replyMarkup:{inline_keyboard:[[shopButton,{text:'🌐 Shop Web',url:shopWebUrl()}]]}});
   }
 
+  private async beginProductPurchase(chat:Chat,productId:number,telegramUserId:string,telegramChatId:string,botContext:{botId:string;token:string}):Promise<void>{
+    if(broadcastService.getMaintenance().enabled){await this.sendMessage(chat.id,broadcastService.getMaintenance().message);return;}
+    const managedBot=await db.getManagedBotById(botContext.botId);
+    const telegramBotId=managedBot?.telegramBotId||managedBot?.username||botContext.botId;
+    if(!managedBot?.isEnabled){await this.sendMessage(chat.id,'Shop hiện chưa hoạt động.');return;}
+    if(!bnkDataService.isReady()){await this.sendMessage(chat.id,'Dữ liệu đặt hàng hiện chưa sẵn sàng. Vui lòng thử lại sau.');return;}
+    const product=await bnkDataService.getProduct(productId);
+    if(!product||product.stockQuantity<1){await this.sendMessage(chat.id,'Sản phẩm hiện không còn hàng.');return;}
+    await bnkDataService.startPurchaseDraft(telegramUserId,telegramChatId,telegramBotId,product.id);
+    const buyer=await bnkDataService.getVerifiedBuyer(telegramUserId,telegramChatId,telegramBotId);
+    if(!buyer)await this.sendContactVerificationPrompt(chat,botContext.token,'purchase');
+    else await this.sendPurchaseInputPrompt(chat,telegramUserId,telegramBotId,'Vui lòng nhập họ tên người nhận.');
+  }
   private async findTelegramAppChat(telegramChatId: string, threadId: number, botId: string): Promise<Chat | null> {
     const chats = await db.getChats(undefined, undefined, botId);
     return chats.find((item) => item.telegramChatId === telegramChatId && (item.messageThreadId || 0) === threadId)
@@ -480,21 +485,7 @@ class TelegramService {
         await this.sendMessage(chat.id, await this.getFlowPrompt(botContext.botId, 'private_chat_required'));
         return;
       }
-      const managedBot = await db.getManagedBotById(botContext.botId);
-      const telegramBotId = managedBot?.telegramBotId || managedBot?.username || botContext.botId;
-      if (!bnkDataService.isReady()) {
-        await this.sendMessage(chat.id, 'Dữ liệu đặt hàng hiện chưa sẵn sàng. Vui lòng thử lại sau.');
-        return;
-      }
-      const product = await bnkDataService.getProduct(Number(buyMatch[1]));
-      if (!product || product.stockQuantity < 1) {
-        await this.sendMessage(chat.id, 'Sản phẩm hiện không còn hàng.');
-        return;
-      }
-      await bnkDataService.startPurchaseDraft(String(query.from.id), telegramChatId, telegramBotId, product.id);
-      const buyer = await bnkDataService.getVerifiedBuyer(String(query.from.id), telegramChatId, telegramBotId);
-      if (!buyer) await this.sendContactVerificationPrompt(chat, botContext.token, 'purchase');
-      else await this.sendPurchaseInputPrompt(chat, String(query.from.id), telegramBotId, 'Vui lòng nhập họ tên người nhận.');
+      await this.beginProductPurchase(chat,Number(buyMatch[1]),String(query.from.id),telegramChatId,botContext);
       return;
     }
 
@@ -1020,6 +1011,14 @@ class TelegramService {
         const managedBot = await db.getManagedBotById(botContext.botId);
         const telegramBotId = managedBot?.telegramBotId || managedBot?.username || botContext.botId;
         await bnkDataService.resetCustomerFlow(String(fromUser.id), tgChatId, telegramBotId);
+      }
+      const buyPayload=command==='start'?tgMessage.text.trim().match(/^\/start(?:@\w+)?\s+buy_([1-9][0-9]{0,14})$/i):null;
+      if(buyPayload&&tgMessage.chat.type==='private'){
+        await this.beginProductPurchase(destination,Number(buyPayload[1]),String(fromUser.id),tgChatId,{botId:botContext.botId,token:botToken});
+        return;
+      }
+      if(command==='start'&&/^\/start(?:@\w+)?\s+shop$/i.test(tgMessage.text.trim())&&tgMessage.chat.type==='private'){
+        await this.sendProductCards(destination,botToken);return;
       }
       if (command === 'cancel') {
         await this.sendMessage(destination.id, 'Đã hủy thao tác. Gửi /start để mở menu.', { replyMarkup: { remove_keyboard: true } });

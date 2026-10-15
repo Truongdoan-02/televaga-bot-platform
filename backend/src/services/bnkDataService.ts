@@ -3,6 +3,7 @@ import mysql from 'mysql2/promise';
 import { config } from '../config/index.js';
 import { db } from '../database/connection.js';
 import { CUSTOMER_MENU } from './customerMenu.js';
+import { applyInventory } from './inventoryService.js';
 
 type BnkActionCode = 'SHOW_GUIDE' | 'SHOW_PRODUCTS' | 'LOOKUP_ORDER' | 'REQUEST_AGENT' | 'PURCHASE_HISTORY' | 'OPEN_WEBSITE' | 'PHONE_SUPPORT';
 
@@ -161,8 +162,8 @@ class BnkDataService {
   async getProducts(): Promise<BnkProduct[]> {
     if (!this.isReady()) return [];
     const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(
-      `SELECT id, name, description, packaging, price, stock_quantity FROM products
-       WHERE is_active = 1 ORDER BY name LIMIT 8`
+      `SELECT p.id,p.name,p.description,p.packaging,p.price,COALESCE(i.stock_quantity-i.quantity_reserved,0) AS stock_quantity FROM products p LEFT JOIN product_inventory i ON i.product_id=p.id
+       WHERE p.is_active = 1 ORDER BY p.name LIMIT 8`
     );
     return rows.map((row) => ({
       id: Number(row.id),
@@ -195,8 +196,8 @@ class BnkDataService {
   async getProduct(productId: number): Promise<BnkProduct | null> {
     if (!this.isReady()) return null;
     const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(
-      `SELECT id, name, description, packaging, price, stock_quantity FROM products
-       WHERE id = ? AND is_active = 1 LIMIT 1`, [productId]
+      `SELECT p.id,p.name,p.description,p.packaging,p.price,COALESCE(i.stock_quantity-i.quantity_reserved,0) AS stock_quantity FROM products p LEFT JOIN product_inventory i ON i.product_id=p.id
+       WHERE p.id = ? AND p.is_active = 1 LIMIT 1`, [productId]
     );
     const row = rows[0];
     return row ? {
@@ -353,7 +354,7 @@ class BnkDataService {
       const checked: { id: number; name: string; price: number; quantity: number }[] = [];
       for (const item of [...items].sort((a, b) => a.productId - b.productId)) {
         const [rows] = await connection.query<mysql.RowDataPacket[]>(
-          'SELECT id, name, price, stock_quantity FROM products WHERE id = ? AND is_active = 1 FOR UPDATE', [item.productId]);
+          'SELECT p.id,p.name,p.price,i.stock_quantity-i.quantity_reserved AS stock_quantity FROM products p JOIN product_inventory i ON i.product_id=p.id WHERE p.id=? AND p.is_active=1 FOR UPDATE', [item.productId]);
         const product = rows[0];
         if (!product) { await connection.rollback(); return { status: 'invalid_product' }; }
         if (Math.round(Number(product.price) * 100) !== item.priceMinor) {
@@ -364,8 +365,6 @@ class BnkDataService {
         }
         checked.push({ id: item.productId, name: String(product.name), price: Number(product.price), quantity: item.quantity });
       }
-      for (const item of checked) await connection.query(
-        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?', [item.quantity, item.id]);
       const [orderInsert] = await connection.query<mysql.ResultSetHeader>(
         `INSERT INTO orders (order_code, customer_id, status, payment_status, recipient_name, recipient_phone, shipping_address, shipping_fee, discount_amount)
          VALUES (?, ?, 'NEW', 'UNPAID', ?, ?, ?, 0, 0)`,
@@ -374,6 +373,10 @@ class BnkDataService {
       for (const item of checked) await connection.query(
         'INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price) VALUES (?, ?, ?, ?, ?)',
         [orderInsert.insertId, item.id, item.name, item.quantity, item.price]);
+      for (const item of checked) await applyInventory(connection,item.id,'reserve',0,item.quantity,{
+        reference:'order:'+orderInsert.insertId+':reserve:'+item.id,note:'Giữ hàng cho đơn Telegram',actor:'telegram',orderId:orderInsert.insertId
+      });
+      await connection.query("INSERT INTO inventory_orders(order_id,order_code,state) VALUES (?,?,'reserved')",[orderInsert.insertId,orderCode]);
       // Complete the initial customer profile only; later delivery details belong to the order.
       if (!String(buyer.address || '').trim()) {
         await connection.query('UPDATE customers SET name = ?, phone = ?, address = ? WHERE id = ?',

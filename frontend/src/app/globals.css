@@ -1703,3 +1703,21 @@ body {
   .sidebar.compact,
   .forum-topics-panel { animation-duration: 1ms !important; }
 }
+
+/* Keep the navigation row in place while its management panel expands below. */
+.section-switch.section-navigation { display: block; }
+.section-navigation-row { display: flex; align-items: center; gap: 5px; }
+.section-navigation-row > button > svg { flex-shrink: 0; }
+.section-navigation-row > button > span { overflow: hidden; text-overflow: ellipsis; }
+.section-switch .section-navigation-toggle { flex: 0 0 30px; padding: 0; }
+.section-navigation-panel { border-top: 1px solid var(--tg-border); margin-top: 4px; padding: 10px 4px 4px; }
+.section-navigation-panel[hidden] { display: none; }
+.section-navigation-heading { display: block; padding: 0 8px 8px; color: var(--tg-text-muted); font-size: 11px; }
+.section-switch .section-navigation-panel button { width: 100%; height: auto; min-height: 54px; justify-content: flex-start; gap: 12px; padding: 10px; text-align: left; white-space: normal; }
+.section-navigation-panel button + button { margin-top: 4px; }
+.section-navigation-panel button > svg { flex-shrink: 0; }
+.section-navigation-panel button > span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.section-navigation-panel strong { font-size: 12px; font-weight: 600; }
+.section-navigation-panel small { color: var(--tg-text-muted); font-size: 11px; font-weight: 400; }
+.section-switch button:focus-visible { outline: 2px solid var(--tg-accent); outline-offset: -2px; }
+.section-switch button:hover { background: var(--tg-bg-active); }

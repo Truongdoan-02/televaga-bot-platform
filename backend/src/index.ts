@@ -12,6 +12,13 @@ import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import botRoutes from './routes/botRoutes.js';
+import productRoutes from './routes/productRoutes.js';
+import supplierRoutes from './routes/supplierRoutes.js';
+import inventoryRoutes from './routes/inventoryRoutes.js';
+import shopRoutes from './routes/shopRoutes.js';
+import { inventoryService } from './services/inventoryService.js';
+import { supplierService } from './services/supplierService.js';
+import { productService } from './services/productService.js';
 import broadcastRoutes from './routes/broadcastRoutes.js';
 import { broadcastService } from './services/broadcastService.js';
 import { telegramService } from './services/telegramService.js';
@@ -21,6 +28,9 @@ import { bnkDataService } from './services/bnkDataService.js';
 async function bootstrap() {
   // Initialize database
   await db.initialize();
+  await supplierService.initialize();
+  await productService.initialize();
+  await inventoryService.initialize();
   try {
     await bnkDataService.initialize();
   } catch (error) {
@@ -65,6 +75,7 @@ async function bootstrap() {
     origin: config.clientUrl,
     credentials: true,
   }));
+  app.use('/api/shop', shopRoutes);
   app.use('/api', requireTrustedOrigin);
   app.use('/api/chats/:chatId/messages/media', requireAdmin, express.raw({ type: () => true, limit: '50mb' }));
   app.use(express.json());
@@ -96,6 +107,9 @@ async function bootstrap() {
   app.use('/api/chats/:chatId/messages', messageRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/bots', botRoutes);
+  app.use('/api/products', productRoutes);
+  app.use('/api/suppliers', supplierRoutes);
+  app.use('/api/inventory', inventoryRoutes);
   app.use('/api/broadcasts', broadcastRoutes);
   await broadcastService.initialize();
 
