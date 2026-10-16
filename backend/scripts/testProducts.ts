@@ -93,7 +93,7 @@ try {
   await assert.rejects(() => suppliers.get(temporary.code), (e: unknown) => e instanceof SupplierError && e.statusCode === 404);
   const stockProduct = await products.save({...input,supplierCode:other.code});
   assert.equal((await products.get(stockProduct.id)).status,'out_of_stock');
-  const tx=(type:'receipt'|'issue'|'count'|'return',quantity:number)=>validateInventory({productId:stockProduct.id,type,quantity,note:'Inventory test',reference:randomUUID(),unitCost:null});
+  const tx=(type:'receipt'|'issue'|'count'|'return',quantity:number)=>validateInventory({productId:stockProduct.id,type,quantity,note:'Inventory test',reference:randomUUID(),unitCost:type==='receipt'?100:null});
   for(const patch of [{quantity:-1},{quantity:1.5},{note:''},{reference:'bad'},{unitCost:-1}])assert.throws(()=>validateInventory({...tx('receipt',1),...patch}),InventoryError);
   const receipt=tx('receipt',10);
   await inventory.transact(receipt);await inventory.transact(receipt);
@@ -146,7 +146,11 @@ try {
   await assert.rejects(()=>inventory.createDocument(document('issue',[{productId:a.id,quantity:1},{productId:b.id,quantity:999}])),InventoryError);
   assert.equal((await inventory.list()).find(i=>i.productId===a.id)?.onHand,5);
   assert.equal((await inventory.documents()).length,1);
-  await inventory.createDocument(document('issue',[{productId:a.id,quantity:2},{productId:b.id,quantity:3}]));
+  const issued=await inventory.createDocument(document('issue',[{productId:a.id,quantity:2,unitCost:1},{productId:b.id,quantity:3}]));
+  assert.equal(Number(issued.items.find(i=>i.product_id===a.id)?.unit_cost),Number(input.price));
+  await pool.query('UPDATE products SET price=price+1 WHERE id=?',[a.id]);
+  assert.equal(Number((await inventory.document(issued.id)).items.find(i=>i.product_id===a.id)?.unit_cost),Number(input.price));
+  assert.throws(()=>validateInventoryDocument(document('receipt',[{productId:a.id,quantity:1}])),InventoryError);
   await inventory.createDocument(document('count',[{productId:a.id,quantity:2},{productId:b.id,quantity:3}]));
   await inventory.createDocument(document('return',[{productId:a.id,quantity:1},{productId:b.id,quantity:1}]));
   const settingsDocument=await inventory.createDocument(document('settings',[{productId:a.id,unit:'chai',minimumQuantity:2},{productId:b.id,unit:'túi',minimumQuantity:4}]));
@@ -155,7 +159,7 @@ try {
   assert.equal((await inventory.list()).find(i=>i.productId===b.id)?.minimumQuantity,4);
   const duplicate=document('receipt',[{productId:a.id,quantity:1},{productId:a.id,quantity:1}]);
   assert.throws(()=>validateInventoryDocument(duplicate),InventoryError);
-  const simultaneous=document('receipt',[{productId:a.id,quantity:1},{productId:b.id,quantity:1}]);
+  const simultaneous=document('receipt',[{productId:a.id,quantity:1,unitCost:100},{productId:b.id,quantity:1,unitCost:200}]);
   const repeated=await Promise.all([inventory.createDocument(simultaneous),inventory.createDocument(simultaneous),inventory.createDocument(simultaneous)]);
   assert.equal(new Set(repeated.map(d=>d.id)).size,1);
   assert.equal((await inventory.list()).find(i=>i.productId===a.id)?.onHand,4);

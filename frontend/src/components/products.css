@@ -28,3 +28,4 @@
 .inventory-document-note{display:flex;flex-direction:column;gap:8px;font-size:13px}
 .inventory-document-dialog footer{margin-top:18px}
 @media(max-width:700px){.inventory-header-actions{justify-content:flex-start;max-width:none}.inventory-document-dialog{padding:16px}}
+.inventory-document-total{margin:0;text-align:right;font-size:14px}.inventory-document-total strong{font-size:17px;color:var(--tg-accent)}

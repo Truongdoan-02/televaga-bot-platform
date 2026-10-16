@@ -51,6 +51,7 @@ export function validateInventory(b: Record<string, unknown>): InventoryInput {
   if (typeof b.quantity !== 'number' || !Number.isInteger(b.quantity) || b.quantity< (b.type==='count'?0:1) || b.quantity>maxQuantity) throw new InventoryError('Số lượng phải là số nguyên hợp lệ.');
   if (typeof b.note !== 'string' || !b.note.trim() || b.note.length>10000) throw new InventoryError('Vui lòng nhập lý do/ghi chú (tối đa 10.000 ký tự).');
   if (typeof b.reference !== 'string' || !/^[a-f0-9-]{36}$/i.test(b.reference)) throw new InventoryError('Mã yêu cầu không hợp lệ. Mở lại form để thử lại.');
+  if (b.type==='receipt' && b.unitCost == null) throw new InventoryError('Vui lòng nhập giá nhập/đơn vị.');
   if (b.unitCost != null && (typeof b.unitCost !== 'number' || !Number.isFinite(b.unitCost) || b.unitCost<0 || b.unitCost>9999999999.99 || Math.abs(b.unitCost*100-Math.round(b.unitCost*100))>0.0001)) throw new InventoryError('Giá nhập không hợp lệ.');
   return { productId: String(b.productId),type:b.type as InventoryInput['type'],quantity:b.quantity,note:b.note.trim(),reference:b.reference,unitCost:b.unitCost as number|null??null };
 }
@@ -88,8 +89,8 @@ export class InventoryService {
   }
   private connection() { if(!this.pool)throw new InventoryError('Tồn kho cần kết nối MySQL.',503);return this.pool; }
   async list() {
-    const [rows]=await this.connection().query<mysql.RowDataPacket[]>("SELECT p.id AS productId,p.sku AS code,p.name,p.image_url AS imageUrl,p.packaging AS quantity,COALESCE(s.name,p.supplier) AS supplier,i.unit,i.stock_quantity AS onHand,i.quantity_reserved AS reserved,i.stock_quantity-i.quantity_reserved AS available,i.minimum_quantity AS minimumQuantity FROM products p JOIN product_inventory i ON i.product_id=p.id LEFT JOIN suppliers s ON s.code=p.supplier_code ORDER BY p.name,p.id");
-    return rows.map(r=>({...r,productId:String(r.productId),onHand:Number(r.onHand),reserved:Number(r.reserved),available:Number(r.available),minimumQuantity:Number(r.minimumQuantity)}));
+    const [rows]=await this.connection().query<mysql.RowDataPacket[]>("SELECT p.id AS productId,p.sku AS code,p.name,p.image_url AS imageUrl,p.packaging AS quantity,p.price AS salePrice,COALESCE(s.name,p.supplier) AS supplier,i.unit,i.stock_quantity AS onHand,i.quantity_reserved AS reserved,i.stock_quantity-i.quantity_reserved AS available,i.minimum_quantity AS minimumQuantity FROM products p JOIN product_inventory i ON i.product_id=p.id LEFT JOIN suppliers s ON s.code=p.supplier_code ORDER BY p.name,p.id");
+    return rows.map(r=>({...r,productId:String(r.productId),salePrice:Number(r.salePrice),onHand:Number(r.onHand),reserved:Number(r.reserved),available:Number(r.available),minimumQuantity:Number(r.minimumQuantity)}));
   }
   async history(productId?: string) {
     const [rows]=await this.connection().query<mysql.RowDataPacket[]>('SELECT t.*,p.sku AS product_code,p.name AS product_name,d.code AS document_code FROM inventory_transactions t JOIN products p ON p.id=t.product_id LEFT JOIN inventory_documents d ON d.id=t.document_id'+(productId?' WHERE t.product_id=?':'')+' ORDER BY t.id DESC LIMIT 500',productId?[productId]:[]);
@@ -156,18 +157,19 @@ export class InventoryService {
       const code=prefixes[input.type]+String(next).padStart(6,'0');
       const [insert]=await c.query<mysql.ResultSetHeader>('INSERT INTO inventory_documents(code,type,note,reference_code,payload_hash,created_by) VALUES (?,?,?,?,?,?)',[code,input.type,input.note,input.reference,hash,'admin']);
       for(const item of input.items){
-        const [products]=await c.query<mysql.RowDataPacket[]>('SELECT sku,name,supplier_code FROM products WHERE id=?',[item.productId]);
+        const [products]=await c.query<mysql.RowDataPacket[]>('SELECT sku,name,supplier_code,price FROM products WHERE id=?',[item.productId]);
         const [rows]=await c.query<mysql.RowDataPacket[]>('SELECT * FROM product_inventory WHERE product_id=? FOR UPDATE',[item.productId]);
         if(!rows.length)throw new InventoryError('Sản phẩm chưa có dữ liệu tồn kho.',409);
         const before=rows[0];let after=Number(before.stock_quantity);
+        const unitCost=input.type==='issue'?Number(products[0].price):item.unitCost;
         if(input.type==='settings')await c.query('UPDATE product_inventory SET unit=?,minimum_quantity=? WHERE product_id=?',[item.unit,item.minimumQuantity,item.productId]);
         else {
           const change=input.type==='count'?item.quantity!-after:input.type==='issue'?-item.quantity!:item.quantity!;
-          const result=await applyInventory(c,item.productId,input.type,change,0,{reference:input.reference+':'+item.productId,note:input.note,actor:'admin',unitCost:item.unitCost,supplierCode:input.type==='receipt'?products[0].supplier_code:undefined,documentId:insert.insertId});
+          const result=await applyInventory(c,item.productId,input.type,change,0,{reference:input.reference+':'+item.productId,note:input.note,actor:'admin',unitCost,supplierCode:input.type==='receipt'?products[0].supplier_code:undefined,documentId:insert.insertId});
           after=result.after;
         }
         await c.query('INSERT INTO inventory_document_items(document_id,product_id,product_code,product_name,quantity,unit_cost,quantity_before,quantity_after,reserved_before,reserved_after,unit_before,unit_after,minimum_before,minimum_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [insert.insertId,item.productId,products[0].sku,products[0].name,item.quantity,item.unitCost,before.stock_quantity,after,before.quantity_reserved,before.quantity_reserved,before.unit,input.type==='settings'?item.unit:before.unit,before.minimum_quantity,input.type==='settings'?item.minimumQuantity:before.minimum_quantity]);
+          [insert.insertId,item.productId,products[0].sku,products[0].name,item.quantity,unitCost,before.stock_quantity,after,before.quantity_reserved,before.quantity_reserved,before.unit,input.type==='settings'?item.unit:before.unit,before.minimum_quantity,input.type==='settings'?item.minimumQuantity:before.minimum_quantity]);
       }
       await c.commit();return await this.readDocument(c,String(insert.insertId));
     }catch(error){

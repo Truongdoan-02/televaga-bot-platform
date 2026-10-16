@@ -198,7 +198,7 @@ export const uploadProductImage = async (file: File): Promise<{ imageUrl: string
   if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được ảnh.');
   return result.data;
 };
-export interface InventoryItem { productId: string; code: string; name: string; imageUrl: string; quantity: string; supplier: string; unit: string; onHand: number; reserved: number; available: number; minimumQuantity: number }
+export interface InventoryItem { salePrice: number; productId: string; code: string; name: string; imageUrl: string; quantity: string; supplier: string; unit: string; onHand: number; reserved: number; available: number; minimumQuantity: number }
 export interface InventoryTransaction { id: number; code: string; product_id: string; product_code: string; product_name: string; type: string; quantity_change: number; reserved_change: number; quantity_before: number; quantity_after: number; reserved_before: number; reserved_after: number; unit_cost: number|null; note: string; created_by: string; created_at: string; order_id: number|null; document_id: string|null; document_code: string|null }
 export interface InventoryOrder { order_id: number; order_code: string; state: string; products: string; updated_at: string }
 export interface InventoryInput { productId: string; type: 'receipt'|'issue'|'count'|'return'; quantity: number; note: string; reference: string; unitCost: number|null }
