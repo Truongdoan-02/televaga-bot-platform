@@ -135,7 +135,7 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
  complete();await direct;assert.equal(get('cart-count').textContent,3);
  get('success-close').onclick();await get('history-open').onclick();assert.equal(get('order-history').open,true);assert.equal(get('history-list').children.length,1);assert.equal(get('history-more').hidden,false);assert.match(get('history-list').children[0].children[1].textContent,/Chờ duyệt đơn/);
  await get('history-more').onclick();assert.equal(get('history-list').children.length,2);assert.equal(get('history-more').hidden,true);
- await get('history-list').children[0].children[2].onclick();assert.equal(get('order-lookup').open,true);assert.match(get('order-result').textContent,/Đang vận chuyển/);
+ assert.equal(get('history-list').children[0].children.length,2);
 
 
 });

@@ -123,7 +123,7 @@ async function loadHistory(reset=false){
  if(historyBusy)return;historyBusy=true;$('history-more').disabled=true;$('history-message').textContent='Đang tải lịch sử…';
  if(reset){historyCursor=null;$('history-list').replaceChildren();$('history-more').hidden=true;}
  try{const data=await shopRequest('orders/history',{cursor:historyCursor});
-  for(const order of data.orders){const row=document.createElement('article');row.className='history-order';const title=document.createElement('h3');title.textContent=order.orderCode;const text=document.createElement('p');text.textContent=new Date(order.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Bangkok'})+' · '+(orderStates[order.status]||order.status)+'\n'+summary(order.items);const view=document.createElement('button');view.textContent='Xem đơn';view.onclick=()=>{$('order-history').close();openLookup(order.orderCode);return $('lookup-form').onsubmit({preventDefault(){}});};row.append(title,text,view);$('history-list').append(row);}
+  for(const order of data.orders){const row=document.createElement('article');row.className='history-order';const title=document.createElement('h3');title.textContent=order.orderCode;const text=document.createElement('p');text.textContent=new Date(order.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Bangkok'})+' · '+(orderStates[order.status]||order.status)+'\n'+summary(order.items);row.append(title,text);$('history-list').append(row);}
   historyCursor=data.nextCursor;$('history-more').hidden=!historyCursor;$('history-message').textContent=$('history-list').children.length?'':'Bạn chưa có đơn mua hàng trong Shop.';
  }catch(error){$('history-message').textContent=error.message;}finally{historyBusy=false;$('history-more').disabled=false;}
 }
