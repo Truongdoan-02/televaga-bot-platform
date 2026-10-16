@@ -16,6 +16,7 @@ import productRoutes from './routes/productRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
+import { shopOrderService } from './services/shopOrderService.js';
 import { inventoryService } from './services/inventoryService.js';
 import { supplierService } from './services/supplierService.js';
 import { productService } from './services/productService.js';
@@ -37,6 +38,8 @@ async function bootstrap() {
     if (process.env.BNK_REQUIRED === 'true') throw error;
     console.error('[BNK] Business-data integration is unavailable:', error instanceof Error ? error.message : error);
   }
+
+  await shopOrderService.initialize();
 
   const app = express();
   const httpServer = createServer(app);

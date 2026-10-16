@@ -98,3 +98,28 @@ test('Shop cart quantities, totals, persistence, isolation, removal and product 
  quantity.value='-1';quantity.onchange();assert.equal(app.get('cart-count').textContent,3);
  app.get('cart-items').children[0].children[2].children[1].onclick();assert.equal(app.get('cart-count').textContent,0);assert.match(app.get('cart-items').children[0].textContent,/trống/);
 });
+test('Shop checkout form places the whole cart once, survives a lost response, and shows order code',async()=>{
+ const fs=await import('node:fs/promises');const {randomUUID}=await import('node:crypto');
+ const html=await fs.readFile(new URL('../../public/shop.html',import.meta.url),'utf8');const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+ const local=new Map<string,string>(),session=new Map<string,string>(),elements=new Map<string,any>();
+ function node(){return {children:[] as any[],textContent:'',value:'',disabled:false,open:false,append(...items:any[]){this.children.push(...items);},replaceChildren(...items:any[]){this.children=items;},setAttribute(){},showModal(){this.open=true;},close(){this.open=false;}} as any;}
+ const document={getElementById(id:string){if(!elements.has(id))elements.set(id,node());return elements.get(id);},createElement:node};const get=document.getElementById;
+ const products=[{id:'1',name:'One',code:'ONE',price:100,quantity:'1 lọ',status:'in_stock',description:'',imageUrl:''},{id:'2',name:'Two',code:'TWO',price:200,quantity:'1 lọ',status:'in_stock',description:'',imageUrl:''}];
+ const posted:any[]=[];let complete:any,attempt=0;
+ const context=vm.createContext({document,crypto:{randomUUID},window:{Telegram:{WebApp:{ready(){},expand(){},initData:'SIGNED'}}},location:{search:'?botId=test'},URLSearchParams,localStorage:{getItem:(k:string)=>local.get(k)||null,setItem:(k:string,v:string)=>local.set(k,v)},sessionStorage:{getItem:(k:string)=>session.get(k)||null,setItem:(k:string,v:string)=>session.set(k,v),removeItem:(k:string)=>session.delete(k)},fetch:async(url:string,options:any)=>{
+  if(!options?.method)return {ok:true,json:async()=>({success:true,data:{products,name:'Shop',username:'TestShopBot',webUrl:'https://vaga.vn'}})};
+  posted.push(JSON.parse(options.body));if(attempt++===0)throw new Error('Network lost');
+  return new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>({success:true,data:{orderCode:'TV-0123456789ABCDEF01234567',name:'Buyer',phone:'0912345678',address:'123 Street',items:[{name:'One',quantity:2,price:100},{name:'Two',quantity:1,price:200}],amount:400}})});});
+ }});
+ await new vm.Script(script).runInContext(context);
+ const add=(index:number)=>get('list').children[index].children[1].children[4].children[0].onclick();add(0);add(0);add(1);
+ assert.equal(get('list').children[0].children[1].children[4].children.length,1);
+ assert.equal(get('cart-items').children[0].children[2].children.length,2);
+ get('checkout-open').onclick();assert.equal(get('checkout').open,true);assert.match(get('checkout-summary').textContent,/2 × One/);assert.match(get('checkout-summary').textContent,/1 × Two/);
+ get('recipient-name').value='Buyer';get('recipient-phone').value='0912345678';get('recipient-address').value='123 Street';
+ await get('checkout-form').onsubmit({preventDefault(){}});assert.equal(posted.length,1);assert.equal(get('cart-count').textContent,3);assert.equal(get('order-success').open,false);assert.equal(get('checkout-fields').disabled,true);
+ const promise=get('checkout-form').onsubmit({preventDefault(){}});await get('checkout-form').onsubmit({preventDefault(){}});assert.equal(posted.length,2);assert.equal(posted[0].requestId,posted[1].requestId);assert.equal(posted[1].items.length,2);assert.equal(posted[1].initData,'SIGNED');
+ complete();await promise;
+ assert.equal(get('cart-count').textContent,0);assert.equal(get('order-success').open,true);assert.equal(get('success-code').textContent,'TV-0123456789ABCDEF01234567');assert.match(get('success-summary').textContent,/400/);assert.equal(session.size,0);
+ get('success-lookup').onclick();assert.equal(get('order-lookup').open,true);assert.equal(get('lookup-code').value,'TV-0123456789ABCDEF01234567');
+});
