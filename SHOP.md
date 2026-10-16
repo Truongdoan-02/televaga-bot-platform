@@ -45,3 +45,4 @@ API /api/orders (GET danh sách), /api/orders/:id (GET chi tiết), /api/orders/
 Duyệt NEW → CONFIRMED; chuẩn bị CONFIRMED → PACKING; giao CONFIRMED/PACKING → SHIPPING; hoàn tất SHIPPING → DELIVERED; hủy NEW/CONFIRMED/PACKING → CANCELLED. Giao/hủy dùng cùng applyOrderInventory với màn tồn kho trong transaction, tránh xử lý tồn hai lần khi gửi lại. Đơn cũ chưa có dữ liệu giữ hàng không được xuất kho tự động.
 
 Lịch sử Shop đọc trạng thái trực tiếp từ orders, có Làm mới và tự tải lại sau 15 giây khi đang mở trang đầu. Không tự gửi tin nhắn bot khi quản trị đổi trạng thái.
+Carousel đầu Shop lấy ảnh từ catalog sản phẩm, tự chuyển 4,5 giây, vuốt tay/nút/chấm chọn ảnh và mở chi tiết khi bấm. Bỏ qua sản phẩm không có ảnh hoặc ảnh lỗi; tạm dừng khi tương tác, mở dialog, ẩn trang hoặc bật giảm chuyển động.

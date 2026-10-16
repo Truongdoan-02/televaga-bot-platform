@@ -139,3 +139,16 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
 
 
 });
+test('product carousel uses catalog images, advances automatically, pauses in dialogs and handles broken images',async()=>{
+ const fs=await import('node:fs/promises');const html=await fs.readFile(new URL('../../public/shop.html',import.meta.url),'utf8');const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+ async function start(reduce=false){const elements=new Map<string,any>(),timers:{fn:()=>void;ms:number}[]=[];
+ function node(){return {children:[] as any[],attrs:{} as any,textContent:'',value:'',hidden:false,disabled:false,open:false,offsetLeft:0,offsetWidth:300,clientWidth:360,scrollLeft:0,append(...items:any[]){for(const item of items){item.offsetLeft=30+this.children.length*314;this.children.push(item);}},replaceChildren(...items:any[]){this.children=items;},setAttribute(key:string,value:string){this.attrs[key]=value;},showModal(){this.open=true;},close(){this.open=false;},scrollTo(options:any){this.scrollLeft=options.left;}} as any;}
+ const document={hidden:false,getElementById(id:string){if(!elements.has(id))elements.set(id,node());return elements.get(id);},createElement:node,querySelector(){return [...elements.values()].find(node=>node.open)||null;}};
+ const products=[{id:'1',name:'One',code:'ONE',price:100,quantity:'1 lọ',status:'in_stock',imageUrl:'/one.png'},{id:'2',name:'Two',code:'TWO',price:200,quantity:'1 lọ',status:'in_stock',imageUrl:'/two.png'},{id:'3',name:'No image',code:'NONE',price:300,quantity:'1 lọ',status:'in_stock',imageUrl:''}];
+ const context=vm.createContext({document,window:{matchMedia:()=>({matches:reduce}),setInterval:(fn:()=>void,ms:number)=>timers.push({fn,ms})},location:{search:'?botId=test'},URLSearchParams,localStorage:{getItem:()=>null,setItem(){}},fetch:async()=>({ok:true,json:async()=>({success:true,data:{products,name:'Shop',username:'TestShopBot',webUrl:'https://vaga.vn'}})})});await new vm.Script(script).runInContext(context);return {get:document.getElementById,tick:timers.find(t=>t.ms===4500)!.fn};}
+ const app=await start();assert.equal(app.get('product-carousel').hidden,false);assert.equal(app.get('carousel-track').children.length,2);assert.equal(app.get('carousel-dots').children[0].attrs['aria-current'],'true');
+ app.tick();assert.equal(app.get('carousel-dots').children[1].attrs['aria-current'],'true');
+ app.get('carousel-track').children[1].onclick();assert.equal(app.get('detail-name').textContent,'Two');app.tick();assert.equal(app.get('carousel-dots').children[1].attrs['aria-current'],'true');
+ app.get('carousel-track').children[0].children[0].onerror();assert.equal(app.get('carousel-track').children.length,1);assert.equal(app.get('carousel-navigation').hidden,true);
+ const reduced=await start(true);reduced.tick();assert.equal(reduced.get('carousel-dots').children[0].attrs['aria-current'],'true');
+});
