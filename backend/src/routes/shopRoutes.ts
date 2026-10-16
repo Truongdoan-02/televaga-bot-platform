@@ -7,6 +7,7 @@ import { broadcastService } from '../services/broadcastService.js';
 import { ShopOrderError,shopOrderService,telegramShopUser,validateShopOrder } from '../services/shopOrderService.js';
 const router=Router();
 router.use((_req,res,next)=>{res.set('Cache-Control','no-store');next();});
+router.get('/background.jpg',(_req,res)=>res.sendFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../public/chat-background.jpg')));
 router.get('/view',(_req,res)=>res.sendFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../public/shop.html')));
 router.get('/catalog',async(req,res)=>{
   const botId=typeof req.query.botId==='string'?req.query.botId:'';
