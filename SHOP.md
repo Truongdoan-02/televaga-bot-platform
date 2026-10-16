@@ -33,3 +33,5 @@ Test Shop Orders tạo database riêng từ schema hiện tại, kiểm tra đơ
 
 Tài liệu xác thực: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
 Danh mục có nút Mua ngay từng sản phẩm: mở thẳng form nhận hàng cho 1 đơn vị của sản phẩm đó, dùng cùng API checkout. Mua nhanh không thêm hoặc trừ sản phẩm trong giỏ; giỏ vẫn đặt chung nhiều sản phẩm.
+
+Thanh công cụ xếp ngang: Tra cứu đơn, Giỏ hàng, Shop Web, Lịch sử mua. POST /api/shop/orders/history xác thực initData, trả 20 đơn Shop mới nhất của đúng tài khoản và bot; nextCursor cho trang tiếp. Lịch sử có nút mở chi tiết từng đơn.

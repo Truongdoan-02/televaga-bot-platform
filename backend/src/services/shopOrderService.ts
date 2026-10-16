@@ -70,6 +70,16 @@ export class ShopOrderService {
     if(typeof code!=='string'||!/^TV-[A-F0-9]{24}$/i.test(code.trim()))throw new ShopOrderError('Vui lòng nhập mã đơn hàng hợp lệ.');
     return this.read(this.connection(),this.scope(botId,userId),code.trim().toUpperCase());
   }
+  async history(botId:string,userId:string,cursor:unknown){
+    if(cursor!=null&&(typeof cursor!=='string'||!/^([1-9]\d{0,19})$/.test(cursor)))throw new ShopOrderError('Trang lịch sử không hợp lệ.');
+    const pool=this.connection(),scope=this.scope(botId,userId);
+    const [rows]=await pool.query<mysql.RowDataPacket[]>(`SELECT o.id,o.order_code,o.status,o.created_at FROM orders o JOIN shop_order_requests r ON r.order_id=o.id WHERE r.scope_key=? ${cursor?'AND o.id<?':''} ORDER BY o.id DESC LIMIT 21`,cursor?[scope,cursor]:[scope]);
+    const page=rows.slice(0,20);
+    if(!page.length)return {orders:[],nextCursor:null};
+    const [lines]=await pool.query<mysql.RowDataPacket[]>('SELECT order_id,product_name,quantity,unit_price FROM order_items WHERE order_id IN (?) ORDER BY id',[page.map(row=>row.id)]);
+    const orders=page.map(row=>{const items=lines.filter(line=>String(line.order_id)===String(row.id)).map(line=>({name:String(line.product_name),quantity:Number(line.quantity),price:Number(line.unit_price)}));return {orderCode:String(row.order_code),status:String(row.status),createdAt:row.created_at,items,amount:items.reduce((sum,line)=>sum+line.quantity*line.price,0)};});
+    return {orders,nextCursor:rows.length>20?String(page[page.length-1].id):null};
+  }
   async create(botId:string,userId:string,telegramBotId:string,input:ShopOrderInput){
     const pool=this.connection(),scope=this.scope(botId,userId);
     const hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');

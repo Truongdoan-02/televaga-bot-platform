@@ -18,13 +18,14 @@ router.get('/catalog',async(req,res)=>{
   }catch{res.status(503).json({success:false,error:'Không tải được danh mục. Vui lòng thử lại.'});}
 });
 
-router.post(['/orders','/orders/lookup'],json({limit:'32kb'}),async(req,res)=>{
+router.post(['/orders','/orders/lookup','/orders/history'],json({limit:'32kb'}),async(req,res)=>{
   try{
     const body=req.body;
     if(!body||typeof body.botId!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(body.botId))throw new ShopOrderError('Liên kết Shop không hợp lệ.');
     const bot=await db.getManagedBotById(body.botId);
     if(!bot)throw new ShopOrderError('Shop không tồn tại.',404);
     const userId=telegramShopUser(body.initData,bot.token);
+    if(req.path==='/orders/history'){res.json({success:true,data:await shopOrderService.history(bot.id,userId,body.cursor)});return;}
     if(req.path==='/orders/lookup'){
       res.json({success:true,data:await shopOrderService.lookup(bot.id,userId,body.orderCode)});return;
     }

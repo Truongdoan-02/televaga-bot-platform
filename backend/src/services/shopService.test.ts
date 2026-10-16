@@ -105,9 +105,11 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
  function node(){return {children:[] as any[],textContent:'',value:'',disabled:false,open:false,append(...items:any[]){this.children.push(...items);},replaceChildren(...items:any[]){this.children=items;},setAttribute(){},showModal(){this.open=true;},close(){this.open=false;}} as any;}
  const document={getElementById(id:string){if(!elements.has(id))elements.set(id,node());return elements.get(id);},createElement:node};const get=document.getElementById;
  const products=[{id:'1',name:'One',code:'ONE',price:100,quantity:'1 lọ',status:'in_stock',description:'',imageUrl:''},{id:'2',name:'Two',code:'TWO',price:200,quantity:'1 lọ',status:'in_stock',description:'',imageUrl:''}];
- const posted:any[]=[];let complete:any,attempt=0;
+ const posted:any[]=[];let complete:any,attempt=0,historyCalls=0;
  const context=vm.createContext({document,crypto:{randomUUID},window:{Telegram:{WebApp:{ready(){},expand(){},initData:'SIGNED'}}},location:{search:'?botId=test'},URLSearchParams,localStorage:{getItem:(k:string)=>local.get(k)||null,setItem:(k:string,v:string)=>local.set(k,v)},sessionStorage:{getItem:(k:string)=>session.get(k)||null,setItem:(k:string,v:string)=>session.set(k,v),removeItem:(k:string)=>session.delete(k)},fetch:async(url:string,options:any)=>{
   if(!options?.method)return {ok:true,json:async()=>({success:true,data:{products,name:'Shop',username:'TestShopBot',webUrl:'https://vaga.vn'}})};
+  if(url.endsWith('orders/history')){historyCalls++;return {ok:true,json:async()=>({success:true,data:{orders:[{orderCode:'TV-0123456789ABCDEF01234567',status:'NEW',createdAt:'2026-10-16T01:00:00Z',items:[{name:'One',quantity:1,price:100}]}],nextCursor:historyCalls===1?'20':null}})};}
+  if(url.endsWith('orders/lookup'))return {ok:true,json:async()=>({success:true,data:{orderCode:'TV-0123456789ABCDEF01234567',status:'SHIPPING',paymentStatus:'UNPAID',items:[{name:'One',quantity:1,price:100}]}})};
   posted.push(JSON.parse(options.body));if(attempt++===0)throw new Error('Network lost');
   return new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>({success:true,data:{orderCode:'TV-0123456789ABCDEF01234567',name:'Buyer',phone:'0912345678',address:'123 Street',items:[{name:'One',quantity:2,price:100},{name:'Two',quantity:1,price:200}],amount:400}})});});
  }});
@@ -131,5 +133,9 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
  get('recipient-name').value='Buyer';get('recipient-phone').value='0912345678';get('recipient-address').value='123 Street';
  const direct=get('checkout-form').onsubmit({preventDefault(){}});assert.equal(posted[2].items.length,1);assert.equal(posted[2].items[0].productId,'1');assert.equal(posted[2].items[0].quantity,1);
  complete();await direct;assert.equal(get('cart-count').textContent,3);
+ get('success-close').onclick();await get('history-open').onclick();assert.equal(get('order-history').open,true);assert.equal(get('history-list').children.length,1);assert.equal(get('history-more').hidden,false);assert.match(get('history-list').children[0].children[1].textContent,/Chờ duyệt đơn/);
+ await get('history-more').onclick();assert.equal(get('history-list').children.length,2);assert.equal(get('history-more').hidden,true);
+ await get('history-list').children[0].children[2].onclick();assert.equal(get('order-lookup').open,true);assert.match(get('order-result').textContent,/Đang vận chuyển/);
+
 
 });

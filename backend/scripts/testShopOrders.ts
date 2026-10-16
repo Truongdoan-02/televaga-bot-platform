@@ -26,6 +26,10 @@ try{
  const [counts]=await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n FROM orders');assert.equal(Number(counts[0].n),1);
  const [stock]=await pool.query<mysql.RowDataPacket[]>('SELECT product_id,quantity_reserved FROM product_inventory ORDER BY product_id');assert.deepEqual(stock.map(r=>Number(r.quantity_reserved)),[2,3]);
  assert.equal((await service.lookup('managed-bot','5',order.orderCode)).orderCode,order.orderCode);
+ assert.equal((await service.history('managed-bot','5',null)).orders[0].amount,800);
+ assert.equal((await service.history('managed-bot','6',null)).orders.length,0);
+ assert.equal((await service.history('other-bot','5',null)).orders.length,0);
+ await assert.rejects(()=>service.history('managed-bot','5','bad'),ShopOrderError);
  await assert.rejects(()=>service.lookup('managed-bot','6',order.orderCode),(e:unknown)=>e instanceof ShopOrderError&&e.statusCode===404);
  await assert.rejects(()=>service.lookup('other-bot','5',order.orderCode),ShopOrderError);
  await assert.rejects(()=>service.create('managed-bot','5','123',{...request,address:'Changed'}),ShopOrderError);
@@ -40,5 +44,10 @@ try{
  const oversell2={...oversell,requestId:randomUUID()};
  const race=await Promise.allSettled([service.create('managed-bot','5','123',oversell),service.create('managed-bot','6','123',oversell2)]);
  assert.equal(race.filter(r=>r.status==='fulfilled').length,1);
+ await pool.query('UPDATE product_inventory SET stock_quantity=100 WHERE product_id=1');
+ for(let i=0;i<21;i++){const extra=input();extra.items=[{productId:'1',quantity:1,priceMinor:10100}];await service.create('managed-bot','5','123',extra);}
+ const firstPage=await service.history('managed-bot','5',null);assert.equal(firstPage.orders.length,20);assert.ok(firstPage.nextCursor);
+ const nextPage=await service.history('managed-bot','5',firstPage.nextCursor);assert.ok(nextPage.orders.length);assert.equal(nextPage.nextCursor,null);assert.equal(nextPage.orders.some(o=>firstPage.orders.some(p=>p.orderCode===o.orderCode)),false);
+ console.log('PASS: paginated order history and cross-user/bot isolation.');
  console.log('PASS: multi-item order and totals, atomic stock reservation, concurrent retry deduplication, price checks, rollback, stock race, account-bound lookup, and historical prices.');
 }finally{if(pool)await pool.end();if(created)await admin.query('DROP DATABASE ??',[name]);await admin.end();console.log('Isolated Shop test database removed.');}

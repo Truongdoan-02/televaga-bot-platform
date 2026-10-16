@@ -15,10 +15,11 @@ test('checkout validates delivery fields and every cart item',()=>{
 });
 test('Shop order endpoints require signed Telegram identity and use the authenticated account',async()=>{
  const {default:express}=await import('express');const {default:routes}=await import('../routes/shopRoutes.js');const {db}=await import('../database/connection.js');const {shopOrderService}=await import('./shopOrderService.js');const {broadcastService}=await import('./broadcastService.js');
- const old={bot:db.getManagedBotById,create:shopOrderService.create,lookup:shopOrderService.lookup,maintenance:broadcastService.getMaintenance};let creates=0,lookups=0;
+ const old={bot:db.getManagedBotById,create:shopOrderService.create,lookup:shopOrderService.lookup,history:shopOrderService.history,maintenance:broadcastService.getMaintenance};let creates=0,lookups=0;
  db.getManagedBotById=async()=>({id:'bot',token:'123:secret',telegramBotId:'123'} as any);broadcastService.getMaintenance=()=>({enabled:false} as any);
  shopOrderService.create=async(bot,user,telegram,input)=>{assert.deepEqual([bot,user,telegram],['bot','5','123']);assert.equal(input.items.length,2);creates++;return {orderCode:'TV-0123456789ABCDEF01234567'} as any;};
  shopOrderService.lookup=async(bot,user,code)=>{assert.deepEqual([bot,user],['bot','5']);lookups++;return {orderCode:code} as any;};
+ shopOrderService.history=async(bot,user,cursor)=>{assert.deepEqual([bot,user],['bot','5']);return {orders:[],nextCursor:null};};
  const app=express();app.use('/api/shop',routes);const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));const address=server.address();if(!address||typeof address==='string')throw Error();const base='http://127.0.0.1:'+address.port;
  const body={botId:'bot',initData:signed('123:secret'),telegramUserId:'999',requestId:randomUUID(),name:'Buyer',phone:'0912345678',address:'Street 123',items:[{productId:'1',quantity:1,priceMinor:10000},{productId:'2',quantity:2,priceMinor:20000}]};
  const post=(path:string,value:any)=>fetch(base+'/api/shop/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
@@ -27,6 +28,8 @@ test('Shop order endpoints require signed Telegram identity and use the authenti
   assert.equal((await post('orders',{...body,initData:signed('another')})).status,401);assert.equal(creates,0);
   assert.equal((await post('orders',body)).status,200);assert.equal(creates,1);
   assert.equal((await post('orders/lookup',{botId:'bot',initData:body.initData,orderCode:'TV-0123456789ABCDEF01234567'})).status,200);assert.equal(lookups,1);
+  assert.equal((await post('orders/history',{botId:'bot',initData:body.initData})).status,200);
+  assert.equal((await post('orders/history',{botId:'bot',initData:''})).status,401);
   broadcastService.getMaintenance=()=>({enabled:true,message:'Bảo trì'} as any);assert.equal((await post('orders',body)).status,503);assert.equal(creates,1);
- }finally{db.getManagedBotById=old.bot;shopOrderService.create=old.create;shopOrderService.lookup=old.lookup;broadcastService.getMaintenance=old.maintenance;server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
+ }finally{db.getManagedBotById=old.bot;shopOrderService.create=old.create;shopOrderService.lookup=old.lookup;shopOrderService.history=old.history;broadcastService.getMaintenance=old.maintenance;server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
