@@ -1705,12 +1705,25 @@ body {
 }
 
 /* Keep the navigation row in place while its management panel expands below. */
-.section-switch.section-navigation { display: block; }
+.section-switch.section-navigation { display: block; position: relative; z-index: 30; }
 .section-navigation-row { display: flex; align-items: center; gap: 5px; }
 .section-navigation-row > button > svg { flex-shrink: 0; }
 .section-navigation-row > button > span { overflow: hidden; text-overflow: ellipsis; }
 .section-switch .section-navigation-toggle { flex: 0 0 30px; padding: 0; }
-.section-navigation-panel { border-top: 1px solid var(--tg-border); margin-top: 4px; padding: 10px 4px 4px; }
+.section-navigation-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 4px 4px;
+  border: 1px solid var(--tg-border);
+  border-radius: 12px;
+  background: var(--tg-bg-tertiary);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .28);
+}
 .section-navigation-panel[hidden] { display: none; }
 .section-navigation-heading { display: block; padding: 0 8px 8px; color: var(--tg-text-muted); font-size: 11px; }
 .section-switch .section-navigation-panel button { width: 100%; height: auto; min-height: 54px; justify-content: flex-start; gap: 12px; padding: 10px; text-align: left; white-space: normal; }
