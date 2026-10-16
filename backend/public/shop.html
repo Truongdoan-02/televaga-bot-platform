@@ -66,14 +66,15 @@ function render(){
   const actions=document.createElement('div');actions.className='actions';
   const info=document.createElement('button');info.className='secondary';info.textContent='Thêm vào giỏ';info.disabled=p.status!=='in_stock';info.onclick=()=>addToCart(p);
 
-  actions.append(info);content.append(open,price,status,description,actions);article.append(content);$('list').append(article);
+  const purchase=document.createElement('button');purchase.textContent='Mua ngay';purchase.disabled=p.status!=='in_stock';purchase.onclick=()=>openCheckout(p);
+  actions.append(info,purchase);content.append(open,price,status,description,actions);article.append(content);$('list').append(article);
  }
 }
 $('cart-open').onclick=()=>{renderCart();$('cart').showModal();};$('cart-close').onclick=()=>$('cart').close();$('detail-add').onclick=()=>{addToCart(selected);$('detail').close();};
 $('search').oninput=render;$('close').onclick=()=>$('detail').close();
 
 const pendingKey='televaga-shop-pending:'+botId;
-let pending=null,checkoutItems=[],placing=false,lastCode='';
+let pending=null,checkoutItems=[],placing=false,lastCode='',checkoutSource='cart';
 try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||'null');}catch{}
 function storePending(){try{if(pending)sessionStorage.setItem(pendingKey,JSON.stringify(pending));else sessionStorage.removeItem(pendingKey);}catch{}}
 async function shopRequest(path,data){
@@ -82,23 +83,24 @@ async function shopRequest(path,data){
  const result=await response.json();if(!response.ok||!result.success){const error=new Error(result.error||'Chưa xử lý được yêu cầu. Vui lòng thử lại.');error.status=response.status;throw error;}return result.data;
 }
 function summary(lines){return lines.map(line=>line.quantity+' × '+line.name+' · '+money(line.price*line.quantity)).join('\n')+'\n\nTổng tiền hàng: '+money(lines.reduce((sum,line)=>sum+line.price*line.quantity,0));}
-function openCheckout(){
+function openCheckout(product=null){
  if(placing)return;
  $('checkout-error').textContent='';
- if(pending){checkoutItems=pending.displayItems;$('recipient-name').value=pending.name;$('recipient-phone').value=pending.phone;$('recipient-address').value=pending.address;$('checkout-error').textContent='Đang có yêu cầu chưa xác nhận kết quả. Nhấn Đặt hàng để kiểm tra lại, không tạo đơn trùng.';}
- else{checkoutItems=cart.map(line=>{const p=products.find(p=>p.id===line.id);return p?{productId:p.id,name:p.name,price:p.price,priceMinor:Math.round(p.price*100),quantity:line.quantity}:null;}).filter(Boolean);if(!checkoutItems.length)return;}
- $('checkout-summary').textContent=summary(checkoutItems);$('checkout-fields').disabled=Boolean(pending);$('cart').close();$('checkout').showModal();
+ if(pending){checkoutSource=pending.source||'cart';checkoutItems=pending.displayItems;$('recipient-name').value=pending.name;$('recipient-phone').value=pending.phone;$('recipient-address').value=pending.address;$('checkout-error').textContent='Đang có yêu cầu chưa xác nhận kết quả. Nhấn Đặt hàng để kiểm tra lại, không tạo đơn trùng.';}
+ else if(product){if(product.status!=='in_stock')return;checkoutSource='direct';checkoutItems=[{productId:product.id,name:product.name,price:product.price,priceMinor:Math.round(product.price*100),quantity:1}];}
+ else{checkoutSource='cart';checkoutItems=cart.map(line=>{const p=products.find(p=>p.id===line.id);return p?{productId:p.id,name:p.name,price:p.price,priceMinor:Math.round(p.price*100),quantity:line.quantity}:null;}).filter(Boolean);if(!checkoutItems.length)return;}
+ $('checkout-back').textContent=checkoutSource==='direct'?'Tiếp tục mua sắm':'Quay lại giỏ';$('checkout-summary').textContent=summary(checkoutItems);$('checkout-fields').disabled=Boolean(pending);$('cart').close();$('checkout').showModal();
 }
-$('checkout-open').onclick=openCheckout;
-$('checkout-back').onclick=()=>{if(placing)return;$('checkout').close();$('cart').showModal();};
+$('checkout-open').onclick=()=>openCheckout();
+$('checkout-back').onclick=()=>{if(placing)return;$('checkout').close();if(checkoutSource==='cart')$('cart').showModal();};
 $('checkout').oncancel=event=>{if(placing)event.preventDefault();};
 $('checkout-form').onsubmit=async event=>{
  event.preventDefault();if(placing)return;
- if(!pending){pending={requestId:crypto.randomUUID(),name:$('recipient-name').value.trim(),phone:$('recipient-phone').value.trim(),address:$('recipient-address').value.trim(),items:checkoutItems.map(({productId,quantity,priceMinor})=>({productId,quantity,priceMinor})),displayItems:checkoutItems};storePending();}
+ if(!pending){pending={requestId:crypto.randomUUID(),source:checkoutSource,name:$('recipient-name').value.trim(),phone:$('recipient-phone').value.trim(),address:$('recipient-address').value.trim(),items:checkoutItems.map(({productId,quantity,priceMinor})=>({productId,quantity,priceMinor})),displayItems:checkoutItems};storePending();}
  placing=true;$('place-order').disabled=true;$('checkout-back').disabled=true;$('checkout-fields').disabled=true;$('place-order').textContent='Đang đặt hàng…';$('checkout-error').textContent='';
  try{
   const order=await shopRequest('orders',pending);lastCode=order.orderCode;
-  for(const bought of pending.items){const line=cart.find(item=>item.id===bought.productId);if(line)line.quantity-=bought.quantity;}
+  if((pending.source||'cart')==='cart')for(const bought of pending.items){const line=cart.find(item=>item.id===bought.productId);if(line)line.quantity-=bought.quantity;}
   cart=cart.filter(line=>line.quantity>0);pending=null;storePending();saveCart();
   $('success-code').textContent=order.orderCode;$('success-summary').textContent=summary(order.items)+'\n\nNgười nhận: '+order.name+'\nSố điện thoại: '+order.phone+'\nĐịa chỉ: '+order.address;
   $('checkout').close();$('order-success').showModal();$('recipient-name').value='';$('recipient-phone').value='';$('recipient-address').value='';

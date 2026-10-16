@@ -32,3 +32,4 @@ Checkout Mini App hoạt động độc lập polling. Không bật cùng token 
 Test Shop Orders tạo database riêng từ schema hiện tại, kiểm tra đơn nhiều mặt hàng, chống trùng đồng thời, rollback, tranh chấp tồn, giá và phân quyền tra cứu, rồi xóa database thử.
 
 Tài liệu xác thực: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+Danh mục có nút Mua ngay từng sản phẩm: mở thẳng form nhận hàng cho 1 đơn vị của sản phẩm đó, dùng cùng API checkout. Mua nhanh không thêm hoặc trừ sản phẩm trong giỏ; giỏ vẫn đặt chung nhiều sản phẩm.

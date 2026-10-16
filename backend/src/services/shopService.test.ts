@@ -113,7 +113,7 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
  }});
  await new vm.Script(script).runInContext(context);
  const add=(index:number)=>get('list').children[index].children[1].children[4].children[0].onclick();add(0);add(0);add(1);
- assert.equal(get('list').children[0].children[1].children[4].children.length,1);
+ assert.equal(get('list').children[0].children[1].children[4].children.length,2);
  assert.equal(get('cart-items').children[0].children[2].children.length,2);
  get('checkout-open').onclick();assert.equal(get('checkout').open,true);assert.match(get('checkout-summary').textContent,/2 × One/);assert.match(get('checkout-summary').textContent,/1 × Two/);
  get('recipient-name').value='Buyer';get('recipient-phone').value='0912345678';get('recipient-address').value='123 Street';
@@ -122,4 +122,14 @@ test('Shop checkout form places the whole cart once, survives a lost response, a
  complete();await promise;
  assert.equal(get('cart-count').textContent,0);assert.equal(get('order-success').open,true);assert.equal(get('success-code').textContent,'TV-0123456789ABCDEF01234567');assert.match(get('success-summary').textContent,/400/);assert.equal(session.size,0);
  get('success-lookup').onclick();assert.equal(get('order-lookup').open,true);assert.equal(get('lookup-code').value,'TV-0123456789ABCDEF01234567');
+ get('lookup-close').onclick();add(0);add(0);add(1);
+ get('list').children[0].children[1].children[4].children[1].onclick();
+ assert.equal(get('checkout').open,true);assert.match(get('checkout-summary').textContent,/1 × One/);assert.equal(get('checkout-summary').textContent.includes('Two'),false);assert.equal(get('cart-count').textContent,3);
+ assert.equal(get('checkout-back').textContent,'Tiếp tục mua sắm');
+ get('checkout-back').onclick();assert.equal(get('cart').open,false);
+ get('list').children[0].children[1].children[4].children[1].onclick();
+ get('recipient-name').value='Buyer';get('recipient-phone').value='0912345678';get('recipient-address').value='123 Street';
+ const direct=get('checkout-form').onsubmit({preventDefault(){}});assert.equal(posted[2].items.length,1);assert.equal(posted[2].items[0].productId,'1');assert.equal(posted[2].items[0].quantity,1);
+ complete();await direct;assert.equal(get('cart-count').textContent,3);
+
 });
