@@ -3,11 +3,37 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--bg:var(--tg-theme-bg-color,#f6f8fa);--text:var(--tg-theme-text-color,#162526);--muted:var(--tg-theme-hint-color,#718084);--card:var(--tg-theme-secondary-bg-color,#fff);--accent:var(--tg-theme-button-color,#248963);--buttontext:var(--tg-theme-button-text-color,#fff)}*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--text)}main{max-width:900px;margin:auto;padding:22px 16px calc(24px + env(safe-area-inset-bottom))}.eyebrow{font-size:10px;letter-spacing:2px;color:var(--accent);font-weight:800}header{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{font-size:24px;line-height:1.2;margin:8px 0}p{margin:8px 0;color:var(--muted)}a{color:var(--accent)}button,.web{font:inherit;border:0;border-radius:10px;padding:11px 14px;cursor:pointer;background:var(--accent);color:var(--buttontext);font-weight:650;text-decoration:none;display:inline-flex;justify-content:center;align-items:center}button:disabled{opacity:.5;cursor:default}.secondary{background:var(--bg);color:var(--text);border:1px solid #8883}input{width:100%;padding:13px 15px;border:1px solid #8883;background:var(--card);color:var(--text);font:inherit;border-radius:12px;margin:18px 0}#list{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{background:var(--card);border:1px solid #8882;border-radius:16px;overflow:hidden}.photo{width:100%;height:190px;object-fit:contain;background:#ffffff0d;display:block}.placeholder{display:grid;place-items:center;height:190px;color:var(--muted);background:#8881}.content{padding:15px}h2{font-size:16px;margin:0 0 6px}.price{color:var(--accent);font-size:18px;font-weight:800}.description{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:42px}.actions{display:flex;gap:8px;margin-top:14px}.actions>*{flex:1}.status{font-size:12px;color:var(--muted)}dialog{color:var(--text);background:var(--card);border:1px solid #8883;border-radius:20px;width:min(560px,calc(100vw - 24px));max-height:90dvh;padding:20px}dialog::backdrop{background:#0008}dialog .photo{height:260px;border-radius:12px}dialog h2{font-size:22px;margin-top:18px}#detail-description{white-space:pre-wrap;color:var(--text)}#message{padding:20px 0}footer{padding-top:26px;text-align:center;color:var(--muted);font-size:12px}@media(max-width:520px){#list{grid-template-columns:1fr}.card{display:grid;grid-template-columns:110px 1fr;align-items:center}.card .photo,.card .placeholder{height:130px}.content{padding:13px}.actions{flex-wrap:wrap}.actions>*{font-size:12px;padding:9px}.description{font-size:12px}.card h2{font-size:15px}.price{font-size:16px}.web{padding:9px 12px;font-size:12px}}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-</style></head><body><main><header><div><div class="eyebrow">SHOP TELEGRAM</div><h1>Danh mục sản phẩm</h1><p id="shop-name"></p></div><a id="web" class="web" hidden>🌐 Shop Web</a></header><input id="search" aria-label="Tìm sản phẩm" placeholder="Tìm tên hoặc mã sản phẩm…"><div id="message" role="status">Đang tải sản phẩm…</div><section id="list" aria-label="Danh sách sản phẩm"></section><footer id="footer"></footer></main>
-<dialog id="detail" aria-labelledby="detail-name"><div id="detail-image"></div><h2 id="detail-name"></h2><div id="detail-price" class="price"></div><p id="detail-quantity"></p><p id="detail-status"></p><p id="detail-description"></p><div class="actions"><button class="secondary" id="close">Đóng</button><button id="buy">Mua ngay</button></div></dialog>
+[hidden]{display:none!important}.header-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}#cart-open{white-space:nowrap}.card{cursor:pointer}.product-open{display:block;border:0;padding:0;background:transparent;color:inherit;text-align:left;font-weight:inherit;width:100%}.product-open h2{margin:0 0 6px}.cart-row{border-bottom:1px solid #8883;padding:14px 0}.cart-row h3{margin:0;font-size:15px}.cart-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cart-controls input{width:72px;margin:8px 0;padding:8px}#cart-total{font-weight:800;font-size:18px;color:var(--accent);text-align:right}#cart-feedback{min-height:24px;color:var(--accent)}#cart-items{max-height:55dvh;overflow:auto}#cart h2{margin-top:0}.cart-row button{padding:8px 12px;font-size:12px}@media(max-width:520px){header{align-items:flex-start}h1{font-size:21px}.header-actions{max-width:150px}#cart-open{padding:9px 12px;font-size:12px}}</style></head><body><main><header><div><div class="eyebrow">SHOP TELEGRAM</div><h1>Danh mục sản phẩm</h1><p id="shop-name"></p></div><div class="header-actions"><button id="cart-open" type="button" aria-haspopup="dialog">🛒 Giỏ hàng (<span id="cart-count">0</span>)</button><a id="web" class="web" hidden>🌐 Shop Web</a></div></header><input id="search" aria-label="Tìm sản phẩm" placeholder="Tìm tên hoặc mã sản phẩm…"><div id="message" role="status">Đang tải sản phẩm…</div><p id="cart-feedback" role="status" aria-live="polite"></p><section id="list" aria-label="Danh sách sản phẩm"></section><footer id="footer"></footer></main>
+<dialog id="detail" aria-labelledby="detail-name"><div id="detail-image"></div><h2 id="detail-name"></h2><div id="detail-price" class="price"></div><p id="detail-quantity"></p><p id="detail-status"></p><p id="detail-description"></p><div class="actions"><button class="secondary" id="close">Đóng</button><button id="detail-add" class="secondary">Thêm vào giỏ</button><button id="buy">Mua ngay</button></div></dialog>
+<dialog id="cart" aria-labelledby="cart-title"><h2 id="cart-title">🛒 Giỏ hàng</h2><div id="cart-items"></div><p id="cart-total"></p><p>Chọn Mua ngay để xác nhận thông tin và số lượng từng sản phẩm qua bot.</p><div class="actions"><button id="cart-close" class="secondary">Tiếp tục mua sắm</button></div></dialog>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 let products=[],selected=null;
+const botId=new URLSearchParams(location.search).get('botId')||'';
+const cartKey='televaga-shop-cart:'+botId;
+let cart=[];
+try{const saved=JSON.parse(localStorage.getItem(cartKey)||'[]');if(Array.isArray(saved))cart=saved.filter(item=>item&&typeof item.id==='string'&&Number.isInteger(item.quantity)&&item.quantity>0&&item.quantity<=999).slice(0,100).filter((item,index,all)=>all.findIndex(other=>other.id===item.id)===index);}catch{}
+function saveCart(){try{localStorage.setItem(cartKey,JSON.stringify(cart));}catch{}renderCart();}
+function addToCart(product){
+ if(product.status!=='in_stock')return;
+ const line=cart.find(item=>item.id===product.id);
+ if(line){if(line.quantity>=999){$('cart-feedback').textContent='Tối đa 999 sản phẩm mỗi dòng.';return;}line.quantity++;}else{if(cart.length>=100){$('cart-feedback').textContent='Giỏ hàng tối đa 100 sản phẩm.';return;}cart.push({id:product.id,quantity:1});}
+ saveCart();$('cart-feedback').textContent='Đã thêm '+product.name+' vào giỏ hàng.';
+}
+function renderCart(){
+ $('cart-count').textContent=cart.reduce((sum,line)=>sum+line.quantity,0);$('cart-items').replaceChildren();let total=0;
+ if(!cart.length){const empty=document.createElement('p');empty.textContent='Giỏ hàng đang trống.';$('cart-items').append(empty);}
+ for(const line of cart){const product=products.find(p=>p.id===line.id);if(!product)continue;
+ const row=document.createElement('div');row.className='cart-row';const name=document.createElement('h3');name.textContent=product.name;
+ const price=document.createElement('p');price.textContent=money(product.price)+' / sản phẩm · '+money(product.price*line.quantity)+(product.status!=='in_stock'?' · Hết hàng':'');
+ const controls=document.createElement('div');controls.className='cart-controls';const label=document.createElement('label');label.textContent='Số lượng ';
+ const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max='999';quantity.step='1';quantity.value=line.quantity;quantity.setAttribute('aria-label','Số lượng '+product.name);
+ quantity.onchange=()=>{const value=Number(quantity.value);if(!Number.isInteger(value)||value<1||value>999){quantity.value=line.quantity;return;}line.quantity=value;saveCart();};label.append(quantity);
+ const remove=document.createElement('button');remove.className='secondary';remove.textContent='Xóa';remove.setAttribute('aria-label','Xóa '+product.name+' khỏi giỏ');remove.onclick=()=>{cart=cart.filter(item=>item.id!==line.id);saveCart();};
+ const purchase=document.createElement('button');purchase.textContent='Mua ngay';purchase.disabled=product.status!=='in_stock'||!product.buyUrl;purchase.onclick=()=>buy(product);
+ controls.append(label,remove,purchase);row.append(name,price,controls);$('cart-items').append(row);total+=product.price*line.quantity;
+ }$('cart-total').textContent='Tổng tiền hàng: '+money(total);
+}
 const $=id=>document.getElementById(id);
 function image(product){
  const box=document.createElement('div');
@@ -24,34 +50,34 @@ function detail(product){
  selected=product;$('detail-image').replaceChildren(image(product));$('detail-name').textContent=product.name;$('detail-price').textContent=money(product.price);
  $('detail-quantity').textContent='Định lượng: '+product.quantity;$('detail-status').textContent=product.status==='in_stock'?'Còn hàng':'Hết hàng';
  $('detail-description').textContent=product.description||'Thông tin đang cập nhật.';$('buy').disabled=product.status!=='in_stock'||!product.buyUrl;
- $('detail').showModal();
+ $('detail-add').disabled=product.status!=='in_stock';$('detail').showModal();
 }
 function money(value){return Number(value).toLocaleString('vi-VN')+' ₫';}
 function render(){
  const q=$('search').value.trim().toLocaleLowerCase('vi');const visible=products.filter(p=>(p.name+' '+p.code).toLocaleLowerCase('vi').includes(q));
  $('list').replaceChildren();$('message').textContent=visible.length?'':products.length?'Không tìm thấy sản phẩm phù hợp.':'Chưa có sản phẩm đang bán.';
  for(const p of visible){
-  const article=document.createElement('article');article.className='card';article.append(image(p));
+  const article=document.createElement('article');article.className='card';article.onclick=event=>{if(!event.target.closest('button'))detail(p);};article.append(image(p));
   const content=document.createElement('div');content.className='content';
-  const title=document.createElement('h2');title.textContent=p.name;
+  const title=document.createElement('h2');title.textContent=p.name;const open=document.createElement('button');open.className='product-open';open.setAttribute('aria-label','Xem chi tiết '+p.name);open.onclick=()=>detail(p);open.append(title);
   const price=document.createElement('div');price.className='price';price.textContent=money(p.price);
   const status=document.createElement('div');status.className='status';status.textContent=p.quantity+' · '+(p.status==='in_stock'?'Còn hàng':'Hết hàng');
   const description=document.createElement('p');description.className='description';description.textContent=p.description||'Thông tin đang cập nhật.';
   const actions=document.createElement('div');actions.className='actions';
-  const info=document.createElement('button');info.className='secondary';info.textContent='Chi tiết';info.onclick=()=>detail(p);
+  const info=document.createElement('button');info.className='secondary';info.textContent='Thêm vào giỏ';info.disabled=p.status!=='in_stock';info.onclick=()=>addToCart(p);
   const purchase=document.createElement('button');purchase.textContent='Mua ngay';purchase.disabled=p.status!=='in_stock'||!p.buyUrl;purchase.onclick=()=>buy(p);
-  actions.append(info,purchase);content.append(title,price,status,description,actions);article.append(content);$('list').append(article);
+  actions.append(info,purchase);content.append(open,price,status,description,actions);article.append(content);$('list').append(article);
  }
 }
+$('cart-open').onclick=()=>{renderCart();$('cart').showModal();};$('cart-close').onclick=()=>$('cart').close();$('detail-add').onclick=()=>{addToCart(selected);$('detail').close();};
 $('search').oninput=render;$('close').onclick=()=>$('detail').close();$('buy').onclick=()=>buy(selected);
 (async()=>{
  try{
-  const botId=new URLSearchParams(location.search).get('botId')||'';
   const response=await fetch('/api/shop/catalog?'+new URLSearchParams({botId}),{cache:'no-store'});
   const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||'Không tải được Shop.');
   products=result.data.products;$('shop-name').textContent=result.data.name;$('footer').textContent=result.data.username?'@'+result.data.username.replace(/^@/,''):'';
   $('web').href=result.data.webUrl;$('web').hidden=false;$('web').onclick=e=>{if(tg?.openLink){e.preventDefault();tg.openLink(result.data.webUrl);}};
-  render();
+  cart=cart.filter(line=>products.some(product=>product.id===line.id));saveCart();render();
  }catch(error){$('message').textContent=error.message||'Không tải được Shop. Vui lòng mở lại.';}
 })();
 </script></body></html>

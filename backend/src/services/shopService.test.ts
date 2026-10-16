@@ -40,7 +40,7 @@ test('shop catalog and view are public but expose only selling product fields; T
   assert.equal('supplier' in data.data.products[0],false);
   assert.equal(JSON.stringify(data).includes('SECRET'),false);
   const view=await fetch(base+'/api/shop/view?botId=test-bot');assert.equal(view.status,200);
-  const html=await view.text();assert.ok(html.includes('Mua ngay')&&html.includes('Chi tiết'));
+  const html=await view.text();assert.ok(html.includes('Mua ngay')&&html.includes('Thêm vào giỏ')&&html.includes('cart-open'));
   for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
   await service.sendProductCards({id:'chat',botId:'test-bot',type:'direct'},'SECRET');
   const buttons=outgoing[0][2].replyMarkup.inline_keyboard[0];
@@ -78,4 +78,23 @@ test('buying from Shop reuses stock checks and verified-buyer purchase flow with
  }finally{
   db.getManagedBotById=originals.bot;bnkDataService.isReady=originals.ready;bnkDataService.getProduct=originals.product;bnkDataService.startPurchaseDraft=originals.draft;bnkDataService.getVerifiedBuyer=originals.buyer;broadcastService.getMaintenance=originals.maintenance;service.sendMessage=originals.send;service.sendPurchaseInputPrompt=originals.prompt;
  }
+});
+test('Shop cart quantities, totals, persistence, isolation, removal and product details',async()=>{
+ const fs=await import('node:fs/promises');
+ const html=await fs.readFile(new URL('../../public/shop.html',import.meta.url),'utf8');
+ const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+ const stored=new Map<string,string>();
+ const products=[{id:'1',name:'Chanh',code:'VG001',quantity:'1 lọ',price:50000,status:'in_stock',description:'Mô tả',imageUrl:'',buyUrl:'https://t.me/TestShopBot?start=buy_1'},{id:'2',name:'Hết hàng',code:'VG002',quantity:'1 lọ',price:10000,status:'out_of_stock',description:'',imageUrl:'',buyUrl:null}];
+ function node(){return {children:[] as any[],textContent:'',value:'',hidden:false,disabled:false,open:false,append(...items:any[]){this.children.push(...items);},replaceChildren(...items:any[]){this.children=items;},setAttribute(){},showModal(){this.open=true;},close(){this.open=false;}} as any;}
+ async function start(botId:string){const elements=new Map<string,any>();const document={getElementById(id:string){if(!elements.has(id))elements.set(id,node());return elements.get(id);},createElement:node};const context=vm.createContext({document,window:{location:{}},location:{search:'?botId='+botId},URLSearchParams,localStorage:{getItem:(key:string)=>stored.get(key)||null,setItem:(key:string,value:string)=>stored.set(key,value)},fetch:async()=>({ok:true,json:async()=>({success:true,data:{products,name:'Shop',username:'TestShopBot',webUrl:'https://vaga.vn'}})})});await new vm.Script(script).runInContext(context);return {context,get:document.getElementById};}
+ const app=await start('bot-a');const card=app.get('list').children[0];const content=card.children[1];const buttons=content.children[4].children;
+ assert.equal(buttons[0].textContent,'Thêm vào giỏ');assert.equal(app.get('cart-count').textContent,0);
+ content.children[0].onclick();assert.equal(app.get('detail').open,true);assert.equal(app.get('detail-name').textContent,'Chanh');assert.equal(app.get('cart-count').textContent,0);
+ buttons[0].onclick();buttons[0].onclick();assert.equal(app.get('cart-count').textContent,2);assert.match(app.get('cart-total').textContent,/100.000/);
+ app.get('cart-open').onclick();assert.equal(app.get('cart').open,true);
+ const controls=app.get('cart-items').children[0].children[2];const quantity=controls.children[0].children[0];quantity.value='3';quantity.onchange();assert.equal(app.get('cart-count').textContent,3);assert.match(app.get('cart-total').textContent,/150.000/);
+ const reopened=await start('bot-a');assert.equal(reopened.get('cart-count').textContent,3);const other=await start('bot-b');assert.equal(other.get('cart-count').textContent,0);
+ assert.equal(app.get('list').children[1].children[1].children[4].children[0].disabled,true);
+ quantity.value='-1';quantity.onchange();assert.equal(app.get('cart-count').textContent,3);
+ app.get('cart-items').children[0].children[2].children[1].onclick();assert.equal(app.get('cart-count').textContent,0);assert.match(app.get('cart-items').children[0].textContent,/trống/);
 });

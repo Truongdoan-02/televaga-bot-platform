@@ -25,3 +25,4 @@ Kiểm tra:
     node --import tsx scripts/testPurchaseFlow.ts
 
 Tài liệu Telegram: https://core.telegram.org/bots/webapps và https://core.telegram.org/bots/features#deep-linking
+Giỏ hàng lưu riêng từng bot trong localStorage; hỗ trợ số lượng, xóa dòng và tổng tiền. Bấm sản phẩm để xem chi tiết. Mua ngay tiếp tục đặt từng sản phẩm qua bot và xác nhận lại số lượng; chưa đặt chung nhiều sản phẩm trong một đơn.
