@@ -15,6 +15,8 @@ import botRoutes from './routes/botRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
+import orderAdminRoutes from './routes/orderAdminRoutes.js';
+import { orderAdminService } from './services/orderAdminService.js';
 import shopRoutes from './routes/shopRoutes.js';
 import { shopOrderService } from './services/shopOrderService.js';
 import { inventoryService } from './services/inventoryService.js';
@@ -40,6 +42,7 @@ async function bootstrap() {
   }
 
   await shopOrderService.initialize();
+  await orderAdminService.initialize();
 
   const app = express();
   const httpServer = createServer(app);
@@ -113,6 +116,7 @@ async function bootstrap() {
   app.use('/api/products', productRoutes);
   app.use('/api/suppliers', supplierRoutes);
   app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/orders', orderAdminRoutes);
   app.use('/api/broadcasts', broadcastRoutes);
   await broadcastService.initialize();
 

@@ -216,3 +216,8 @@ export interface InventoryDocumentDetail extends InventoryDocument { items:Inven
 export const fetchInventoryDocuments = () => apiFetch<InventoryDocument[]>('/api/inventory/documents');
 export const fetchInventoryDocument = (id:string) => apiFetch<InventoryDocumentDetail>('/api/inventory/documents/'+encodeURIComponent(id));
 export const createInventoryDocument = (input:InventoryDocumentInput) => apiFetch<InventoryDocumentDetail>('/api/inventory/documents',{method:'POST',body:JSON.stringify(input)});
+export interface AdminOrder { id:string;code:string;status:string;paymentStatus:string;name:string;phone:string;createdAt:string;quantity:number;amount:number;total:number }
+export interface AdminOrderDetail extends AdminOrder { address:string;note:string;carrier:string;trackingCode:string;inventoryState:string|null;shippingFee:number;discount:number;items:{productId:string;name:string;quantity:number;price:number;amount:number}[] }
+export const fetchAdminOrders=(search='',status='',cursor='')=>apiFetch<{orders:AdminOrder[];nextCursor:string|null}>('/api/orders?'+new URLSearchParams({search,status,...(cursor?{cursor}:{})}));
+export const fetchAdminOrder=(id:string)=>apiFetch<AdminOrderDetail>('/api/orders/'+encodeURIComponent(id));
+export const changeAdminOrder=(id:string,action:string,expectedStatus:string)=>apiFetch<AdminOrderDetail>('/api/orders/'+encodeURIComponent(id)+'/action',{method:'POST',body:JSON.stringify({action,expectedStatus})});

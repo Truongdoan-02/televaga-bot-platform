@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import mysql from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
+import { OrderAdminService,OrderAdminError } from '../src/services/orderAdminService.js';
 import { config } from '../src/config/index.js';
 import { ShopOrderService,ShopOrderError,migrateShopOrders,validateShopOrder } from '../src/services/shopOrderService.js';
 const admin=await mysql.createConnection(config.database);
@@ -48,6 +49,28 @@ try{
  for(let i=0;i<21;i++){const extra=input();extra.items=[{productId:'1',quantity:1,priceMinor:10100}];await service.create('managed-bot','5','123',extra);}
  const firstPage=await service.history('managed-bot','5',null);assert.equal(firstPage.orders.length,20);assert.ok(firstPage.nextCursor);
  const nextPage=await service.history('managed-bot','5',firstPage.nextCursor);assert.ok(nextPage.orders.length);assert.equal(nextPage.nextCursor,null);assert.equal(nextPage.orders.some(o=>firstPage.orders.some(p=>p.orderCode===o.orderCode)),false);
+ const adminService=new OrderAdminService(pool);
+ await pool.query('UPDATE product_inventory SET stock_quantity=100');
+ const managed=input();managed.items=[{productId:'1',quantity:1,priceMinor:10100},{productId:'2',quantity:1,priceMinor:20000}];const placed=await service.create('managed-bot','5','123',managed);
+ const listed=await adminService.list(placed.orderCode,'NEW');assert.equal(listed.orders.length,1);const adminId=listed.orders[0].id;assert.equal((await adminService.detail(adminId)).items.length,2);
+ const [beforeAdmin]=await pool.query<mysql.RowDataPacket[]>('SELECT stock_quantity,quantity_reserved FROM product_inventory ORDER BY product_id');
+ assert.equal((await adminService.action(adminId,{action:'approve',expectedStatus:'NEW'})).status,'CONFIRMED');
+ assert.equal((await adminService.action(adminId,{action:'approve',expectedStatus:'NEW'})).status,'CONFIRMED');
+ assert.equal((await service.lookup('managed-bot','5',placed.orderCode)).status,'CONFIRMED');
+ assert.equal((await service.history('managed-bot','5',null)).orders.find(o=>o.orderCode===placed.orderCode)?.status,'CONFIRMED');
+ await adminService.action(adminId,{action:'pack',expectedStatus:'CONFIRMED'});
+ await assert.rejects(()=>adminService.action(adminId,{action:'approve',expectedStatus:'PACKING'}),OrderAdminError);
+ await assert.rejects(()=>adminService.action(adminId,{action:'ship',expectedStatus:'NEW'}),OrderAdminError);
+ await adminService.action(adminId,{action:'ship',expectedStatus:'PACKING'});await adminService.action(adminId,{action:'ship',expectedStatus:'PACKING'});
+ const [afterAdmin]=await pool.query<mysql.RowDataPacket[]>('SELECT stock_quantity,quantity_reserved FROM product_inventory ORDER BY product_id');
+ assert.deepEqual(afterAdmin.map(r=>Number(r.stock_quantity)),beforeAdmin.map(r=>Number(r.stock_quantity)-1));assert.deepEqual(afterAdmin.map(r=>Number(r.quantity_reserved)),beforeAdmin.map(r=>Number(r.quantity_reserved)-1));
+ await adminService.action(adminId,{action:'deliver',expectedStatus:'SHIPPING'});await assert.rejects(()=>adminService.action(adminId,{action:'cancel',expectedStatus:'DELIVERED'}),OrderAdminError);
+ const cancelRequest=input();cancelRequest.items=[{productId:'1',quantity:1,priceMinor:10100}];const cancelled=await service.create('managed-bot','5','123',cancelRequest);const cancelId=(await adminService.list(cancelled.orderCode)).orders[0].id;
+ await adminService.action(cancelId,{action:'cancel',expectedStatus:'NEW'});await adminService.action(cancelId,{action:'cancel',expectedStatus:'NEW'});
+ const [afterCancel]=await pool.query<mysql.RowDataPacket[]>('SELECT quantity_reserved FROM product_inventory ORDER BY product_id');assert.deepEqual(afterCancel.map(r=>Number(r.quantity_reserved)),afterAdmin.map(r=>Number(r.quantity_reserved)));
+ assert.equal((await service.lookup('managed-bot','5',cancelled.orderCode)).status,'CANCELLED');
+ await assert.rejects(()=>adminService.detail('999999'),OrderAdminError);await assert.rejects(()=>adminService.list('',"invalid"),OrderAdminError);
+ console.log('PASS: admin search/detail, approval reflected in Telegram history, valid lifecycle, stale-action rejection, idempotent shipping/cancellation and stock consistency.');
  console.log('PASS: paginated order history and cross-user/bot isolation.');
  console.log('PASS: multi-item order and totals, atomic stock reservation, concurrent retry deduplication, price checks, rollback, stock race, account-bound lookup, and historical prices.');
 }finally{if(pool)await pool.end();if(created)await admin.query('DROP DATABASE ??',[name]);await admin.end();console.log('Isolated Shop test database removed.');}

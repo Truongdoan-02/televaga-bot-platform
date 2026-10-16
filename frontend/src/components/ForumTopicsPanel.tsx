@@ -16,8 +16,8 @@ interface ForumTopicsPanelProps {
   managedBots: ManagedBot[];
   selectedBotId: string;
   onBotChange: (botId: string) => void;
-  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory';
-  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory') => void;
+  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders';
+  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders') => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onCreateGroup: () => void;

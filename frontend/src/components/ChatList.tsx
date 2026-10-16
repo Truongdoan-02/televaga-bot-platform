@@ -8,15 +8,15 @@ import { AdminLogoutButton } from './AdminGate';
 import { Chat, ManagedBot } from '@/types';
 import SectionNavigation from './SectionNavigation';
 import { getMessageContent } from './MessageText';
-import { Bell, ArrowLeft, Warehouse, Truck, Package, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
+import { Bell, ArrowLeft, ClipboardList, Warehouse, Truck, Package, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
 
 interface ChatListProps {
   chats: Chat[];
   managedBots: ManagedBot[];
   selectedBotId: string;
   onBotChange: (botId: string) => void;
-  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory';
-  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory') => void;
+  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders';
+  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders') => void;
   activeChatId: string | null;
   category: string;
   searchQuery: string;
@@ -312,7 +312,7 @@ export default function ChatList({
           chats.filter((chat) => !chat.parentChatId).map((chat) => renderChat(chat))
         )}
       </div>}
-      </> : <div className="bot-sidebar-hint">{activeSection === 'inventory' ? <Warehouse size={25} /> : activeSection === 'suppliers' ? <Truck size={25} /> : activeSection === 'products' ? <Package size={25} /> : activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'inventory' ? 'Quản lý tồn kho' : activeSection === 'suppliers' ? 'Nhà cung cấp' : activeSection === 'products' ? 'Quản lý sản phẩm' : activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'inventory' ? 'Nhập, xuất, kiểm kê và lịch sử kho' : activeSection === 'suppliers' ? 'Đối tác, liên hệ và thông tin hợp tác' : activeSection === 'products' ? 'Danh mục, giá và tình trạng sản phẩm' : activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
+      </> : <div className="bot-sidebar-hint">{activeSection === 'orders' ? <ClipboardList size={25} /> : activeSection === 'inventory' ? <Warehouse size={25} /> : activeSection === 'suppliers' ? <Truck size={25} /> : activeSection === 'products' ? <Package size={25} /> : activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'orders' ? 'Quản lý đơn hàng' : activeSection === 'inventory' ? 'Quản lý tồn kho' : activeSection === 'suppliers' ? 'Nhà cung cấp' : activeSection === 'products' ? 'Quản lý sản phẩm' : activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'orders' ? 'Duyệt đơn và cập nhật trạng thái' : activeSection === 'inventory' ? 'Nhập, xuất, kiểm kê và lịch sử kho' : activeSection === 'suppliers' ? 'Đối tác, liên hệ và thông tin hợp tác' : activeSection === 'products' ? 'Danh mục, giá và tình trạng sản phẩm' : activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
 
       {contextMenu && createPortal(
         <div onClick={() => setContextMenu(null)} onContextMenu={(event) => { event.preventDefault(); setContextMenu(null); }} style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Bell, Bot, MessageSquare, Package, Truck, Warehouse } from 'lucide-react';
+import { Bell, Bot, MessageSquare, Package, Truck, Warehouse, ClipboardList } from 'lucide-react';
 
-type Section = 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory';
+type Section = 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders';
 
 const sections = [
   { id: 'bots', label: 'Quản lý bot', description: 'Danh sách bot và cấu hình token', icon: Bot },
@@ -11,6 +11,7 @@ const sections = [
   { id: 'notifications', label: 'Thông báo', description: 'Thông báo, broadcast và bảo trì', icon: Bell },
   { id: 'products', label: 'Sản phẩm', description: 'Danh mục, giá và tình trạng sản phẩm', icon: Package },
   { id: 'suppliers', label: 'Nhà cung cấp', description: 'Đối tác, liên hệ và thông tin hợp tác', icon: Truck },
+  { id: 'orders', label: 'Đơn hàng', description: 'Quản lý và duyệt đơn, cập nhật trạng thái', icon: ClipboardList },
   { id: 'inventory', label: 'Tồn kho', description: 'Nhập, xuất, kiểm kê và lịch sử kho', icon: Warehouse },
 ] as const;
 
@@ -59,7 +60,7 @@ export default function SectionNavigation({ activeSection, onSectionChange }: {
             {[3, 9, 15].flatMap((cy) => [3, 9, 15].map((cx) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.5" />))}
           </svg>
         </button>
-        {sections.filter(section => section.id !== 'products' && section.id !== 'suppliers' && section.id !== 'inventory').map(({ id, label, icon: Icon }) => (
+        {sections.filter(section => section.id !== 'products' && section.id !== 'suppliers' && section.id !== 'inventory' && section.id !== 'orders').map(({ id, label, icon: Icon }) => (
           <button key={id} type="button" className={activeSection === id ? 'active' : ''}
             aria-pressed={activeSection === id} onClick={() => selectSection(id)}>
             <Icon size={16} /><span>{label}</span>

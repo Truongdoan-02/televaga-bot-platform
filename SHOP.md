@@ -35,3 +35,13 @@ Tài liệu xác thực: https://core.telegram.org/bots/webapps#validating-data-
 Danh mục có nút Mua ngay từng sản phẩm: mở thẳng form nhận hàng cho 1 đơn vị của sản phẩm đó, dùng cùng API checkout. Mua nhanh không thêm hoặc trừ sản phẩm trong giỏ; giỏ vẫn đặt chung nhiều sản phẩm.
 
 Thanh công cụ xếp ngang: Tra cứu đơn, Giỏ hàng, Shop Web, Lịch sử mua. POST /api/shop/orders/history xác thực initData, trả 20 đơn Shop mới nhất của đúng tài khoản và bot; nextCursor cho trang tiếp. Lịch sử có nút mở chi tiết từng đơn.
+
+## Quản trị đơn hàng
+
+Menu 9 chấm trong hệ thống web có mục Đơn hàng: tìm mã/tên/điện thoại, lọc trạng thái, chi tiết mặt hàng và địa chỉ nhận, phân trang 50 đơn.
+
+API /api/orders (GET danh sách), /api/orders/:id (GET chi tiết), /api/orders/:id/action (POST) nằm sau requireAdmin và requireTrustedOrigin. Thao tác kèm expectedStatus để ngăn cập nhật từ màn hình cũ.
+
+Duyệt NEW → CONFIRMED; chuẩn bị CONFIRMED → PACKING; giao CONFIRMED/PACKING → SHIPPING; hoàn tất SHIPPING → DELIVERED; hủy NEW/CONFIRMED/PACKING → CANCELLED. Giao/hủy dùng cùng applyOrderInventory với màn tồn kho trong transaction, tránh xử lý tồn hai lần khi gửi lại. Đơn cũ chưa có dữ liệu giữ hàng không được xuất kho tự động.
+
+Lịch sử Shop đọc trạng thái trực tiếp từ orders, có Làm mới và tự tải lại sau 15 giây khi đang mở trang đầu. Không tự gửi tin nhắn bot khi quản trị đổi trạng thái.

@@ -81,6 +81,24 @@ export function validateInventoryDocument(value:unknown):InventoryDocumentInput 
   }).sort((a,b)=>BigInt(a.productId)<BigInt(b.productId)?-1:1);
   return {type:b.type as InventoryDocumentInput['type'],note:b.note.trim(),reference:b.reference,items};
 }
+export async function applyOrderInventory(c:mysql.PoolConnection,orderId:string,action:string){
+  if(!['fulfill','cancel','return'].includes(action))throw new InventoryError('Thao tác đơn không hợp lệ.');
+      const [actualOrders]=await c.query<mysql.RowDataPacket[]>('SELECT id,status FROM orders WHERE id=? FOR UPDATE',[orderId]);
+      if(!actualOrders.length)throw new InventoryError('Không tìm thấy đơn hàng.',404);
+      const [rows]=await c.query<mysql.RowDataPacket[]>('SELECT * FROM inventory_orders WHERE order_id=? FOR UPDATE',[orderId]);
+      const order=rows[0];if(!order)throw new InventoryError('Đơn này chưa có dữ liệu giữ hàng trong hệ thống tồn kho mới.',409);
+      const next=action==='fulfill'?'fulfilled':action==='cancel'?'cancelled':'returned';
+      if(order.state===next)return;
+      if((action==='return'&&order.state!=='fulfilled')||(action!=='return'&&order.state!=='reserved'))throw new InventoryError('Trạng thái đơn không phù hợp.',409);
+      const [items]=await c.query<mysql.RowDataPacket[]>('SELECT product_id,SUM(quantity) AS quantity FROM order_items WHERE order_id=? GROUP BY product_id ORDER BY product_id',[orderId]);
+      if(!items.length||items.some(i=>!i.product_id))throw new InventoryError('Đơn thiếu thông tin sản phẩm.',409);
+      for(const item of items)await applyInventory(c,item.product_id,action,action==='fulfill'?-Number(item.quantity):action==='return'?Number(item.quantity):0,action==='return'?0:-Number(item.quantity),
+        {reference:'order:'+orderId+':'+action+':'+item.product_id,note:action==='return'?'Nhận lại toàn bộ hàng của đơn':action==='fulfill'?'Xuất kho giao đơn':'Hủy đơn, giải phóng giữ hàng',actor:'admin',orderId:Number(orderId)});
+      await c.query('UPDATE inventory_orders SET state=? WHERE order_id=?',[next,orderId]);
+      await c.query('UPDATE orders SET status=? WHERE id=?',[action==='fulfill'?'SHIPPING':'CANCELLED',orderId]);
+
+}
+
 export class InventoryService {
   constructor(private pool: mysql.Pool|null=null) {}
   async initialize() {
@@ -187,25 +205,9 @@ export class InventoryService {
     return rows;
   }
   async orderAction(orderId:string,action:string) {
-    if(!['fulfill','cancel','return'].includes(action))throw new InventoryError('Thao tác đơn không hợp lệ.');
     const c=await this.connection().getConnection();
-    try {
-      await c.beginTransaction();
-      const [actualOrders]=await c.query<mysql.RowDataPacket[]>('SELECT id,status FROM orders WHERE id=? FOR UPDATE',[orderId]);
-      if(!actualOrders.length)throw new InventoryError('Không tìm thấy đơn hàng.',404);
-      const [rows]=await c.query<mysql.RowDataPacket[]>('SELECT * FROM inventory_orders WHERE order_id=? FOR UPDATE',[orderId]);
-      const order=rows[0];if(!order)throw new InventoryError('Đơn này chưa có dữ liệu giữ hàng trong hệ thống tồn kho mới.',409);
-      const next=action==='fulfill'?'fulfilled':action==='cancel'?'cancelled':'returned';
-      if(order.state===next){await c.commit();return;}
-      if((action==='return'&&order.state!=='fulfilled')||(action!=='return'&&order.state!=='reserved'))throw new InventoryError('Trạng thái đơn không phù hợp.',409);
-      const [items]=await c.query<mysql.RowDataPacket[]>('SELECT product_id,SUM(quantity) AS quantity FROM order_items WHERE order_id=? GROUP BY product_id ORDER BY product_id',[orderId]);
-      if(!items.length||items.some(i=>!i.product_id))throw new InventoryError('Đơn thiếu thông tin sản phẩm.',409);
-      for(const item of items)await applyInventory(c,item.product_id,action,action==='fulfill'?-Number(item.quantity):action==='return'?Number(item.quantity):0,action==='return'?0:-Number(item.quantity),
-        {reference:'order:'+orderId+':'+action+':'+item.product_id,note:action==='return'?'Nhận lại toàn bộ hàng của đơn':action==='fulfill'?'Xuất kho giao đơn':'Hủy đơn, giải phóng giữ hàng',actor:'admin',orderId:Number(orderId)});
-      await c.query('UPDATE inventory_orders SET state=? WHERE order_id=?',[next,orderId]);
-      await c.query('UPDATE orders SET status=? WHERE id=?',[action==='fulfill'?'SHIPPING':'CANCELLED',orderId]);
-      await c.commit();
-    }catch(error){await c.rollback();throw error;}finally{c.release();}
+    try{await c.beginTransaction();await applyOrderInventory(c,orderId,action);await c.commit();}
+    catch(error){await c.rollback();throw error;}finally{c.release();}
   }
 }
 export const inventoryService=new InventoryService();
