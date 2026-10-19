@@ -5,7 +5,7 @@ import { assetUrl } from '@/lib/assets';
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import {
   Send, CheckCheck, Check, Clock, Users, MoreVertical, Reply, Copy, Pin, Search, X, ChevronLeft, ChevronUp, ChevronDown, CalendarDays,
-  Forward, CheckCircle2, Trash2, Smile, CheckSquare, Square, List, Paperclip, Image as ImageIcon, File as FileIcon,
+  Forward, CheckCircle2, Download, Trash2, Smile, CheckSquare, Square, List, Paperclip, Image as ImageIcon, File as FileIcon,
 } from 'lucide-react';
 import { Chat, Message } from '@/types';
 import MessageText from './MessageText';
@@ -326,7 +326,7 @@ export default function ChatWindow({
     const rect = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : null;
     const x = 'clientX' in event && event.clientX ? event.clientX : (rect?.right || 420);
     const y = 'clientY' in event && event.clientY ? event.clientY : (rect?.bottom || 240);
-    setMenu({ message, x: Math.min(x, window.innerWidth - 245), y: Math.min(y, window.innerHeight - 350) });
+    setMenu({ message, x: Math.min(x, window.innerWidth - 245), y: Math.min(y, window.innerHeight - (message.mediaUrl ? 400 : 350)) });
   };
 
   const toggleSelected = (id: string) => {
@@ -339,6 +339,25 @@ export default function ChatWindow({
       await navigator.clipboard.writeText(text);
       setActionError('Đã sao chép nội dung tin nhắn');
       window.setTimeout(() => setActionError(''), 2200);
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const downloadMedia = async (message: Message) => {
+    setMenu(null);
+    if (!message.mediaUrl) return;
+    try {
+      const response = await fetch(assetUrl(message.mediaUrl));
+      if (!response.ok) throw new Error('Không tải được tệp. Vui lòng thử lại.');
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = message.fileName || message.mediaUrl.split(/[?#]/)[0].split('/').pop() || 'download';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (error) {
       showError(error);
     }
@@ -597,6 +616,7 @@ export default function ChatWindow({
             <div className="message-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}>
               <div className="context-reaction-row">{REACTIONS.slice(0, 6).map((emoji) => <button key={emoji} onClick={() => { setMenu(null); onReactMessage(menu.message.id, emoji).catch(showError); }}>{emoji}</button>)}</div>
               <button onClick={() => void handleAction('reply', menu.message)}><Reply size={17} /> Trả lời</button>
+              {menu.message.mediaUrl && <button onClick={() => void downloadMedia(menu.message)}><Download size={17} /> Tải xuống</button>}
               <button onClick={() => void handleAction('copy', menu.message)}><Copy size={17} /> Sao chép</button>
               <button onClick={() => void handleAction('pin', menu.message)}><Pin size={17} /> {menu.message.isPinned ? 'Bỏ ghim' : 'Ghim'}</button>
               <button onClick={() => void handleAction('forward', menu.message)}><Forward size={17} /> Chuyển tiếp</button>
