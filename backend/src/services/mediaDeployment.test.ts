@@ -41,3 +41,18 @@ test('photo without caption is saved to durable media and deduplicated',async()=
  assert.equal(saved.length,1);assert.equal(saved[0].type,'image');assert.equal(saved[0].mediaUrl,url);assert.equal(downloads,1);
  }finally{Object.assign(db,original);globalThis.fetch=fetch;if(url)await unlink(uploadFilePath(url)).catch(()=>{});}
 });
+
+test('media sent as documents can be previewed and video notes are recognized', () => {
+  for (const [file_name, mime_type, type] of [
+    ['logo.jpg', 'image/jpeg', 'image'],
+    ['clip.mp4', 'video/mp4', 'video'],
+    ['recording.mp3', 'audio/mpeg', 'audio'],
+    ['PHOTO.PNG', 'application/octet-stream', 'image'],
+    ['clip.webm', undefined, 'video'],
+    ['voice.ogg', undefined, 'audio'],
+    ['invoice.pdf', 'application/pdf', 'document'],
+  ]) {
+    assert.equal(telegramMedia({document: {file_id: 'file', file_name, mime_type}})?.type, type);
+  }
+  assert.equal(telegramMedia({video_note: {file_id: 'round-video'}})?.type, 'video');
+});

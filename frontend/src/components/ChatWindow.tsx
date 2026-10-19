@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Chat, Message } from '@/types';
 import MessageText from './MessageText';
+import MessageMedia from './MessageMedia';
 
 
 const REACTIONS = ['❤️', '👍', '👎', '🔥', '🥰', '👏', '😁'];
@@ -570,10 +571,7 @@ export default function ChatWindow({
                             {message.isPinned && <div className="message-pin-label"><Pin size={12} /> Đã ghim</div>}
                             {message.forwardedFrom && <div className="message-forwarded-label"><Forward size={12} /> Đã chuyển tiếp từ {message.forwardedFrom}</div>}
                             {reply && <div className="reply-quote"><strong>{reply.senderName || (reply.isOutgoing ? 'Bạn' : chat.title)}</strong><span>{reply.text}</span></div>}
-                            {message.mediaUrl && message.type === 'image' && <img src={assetUrl(message.mediaUrl)} alt={message.fileName || 'Ảnh'} style={{ display: 'block', width: '100%', minHeight: 120, maxWidth: 'min(360px, 65vw)', maxHeight: 360, borderRadius: 10, objectFit: 'contain', marginBottom: 5 }} />}
-                            {message.mediaUrl && message.type === 'video' && <video src={assetUrl(message.mediaUrl)} controls preload="metadata" style={{ display: 'block', width: 'min(360px, 65vw)', maxHeight: 360, borderRadius: 10, marginBottom: 5 }} />}
-                            {message.mediaUrl && message.type === 'audio' && <audio src={assetUrl(message.mediaUrl)} controls preload="metadata" style={{ width: 'min(300px, 60vw)' }} />}
-                            {message.mediaUrl && message.type === 'document' && <a href={assetUrl(message.mediaUrl)} download={message.fileName || true} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 190, maxWidth: 320, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,.16)', color: 'inherit', textDecoration: 'none' }}><FileIcon size={22} /><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{message.fileName || message.text}</span></a>}
+                            {message.mediaUrl && <MessageMedia key={message.mediaUrl} message={message} selectionMode={selectionMode} />}
                             {(!message.mediaUrl || message.text !== message.fileName) && <div className="bubble-text"><MessageText message={message} /></div>}
                             <div className="bubble-meta"><span className="bubble-time">{formatMsgTime(message.createdAt)}</span>{group.isOutgoing && <span className="bubble-status"><StatusIcon status={message.status} /></span>}</div>
                           </div>
