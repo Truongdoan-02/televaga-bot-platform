@@ -378,6 +378,9 @@ export default function HomePage() {
   useSocket({
     activeChatId,
     onNewMessage: handleNewMessage,
+    onMessageUpdated: useCallback((message: Message) => {
+      setMessages(prev => prev.map(item => item.id === message.id && item.chatId === message.chatId ? message : item));
+    }, []),
     onChatActivity: handleChatActivity,
     onUserTyping: handleUserTyping,
     onChatMarkedRead: handleChatMarkedRead,

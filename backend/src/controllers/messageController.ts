@@ -46,14 +46,7 @@ export const toggleReaction = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ success: false, error: 'Message not found' });
       return;
     }
-    const reactions = { ...(message.reactions || {}) };
-    const users = [...(reactions[emoji] || [])];
-    const userIndex = users.indexOf('user_agent_me');
-    if (userIndex >= 0) users.splice(userIndex, 1);
-    else users.push('user_agent_me');
-    if (users.length) reactions[emoji] = users;
-    else delete reactions[emoji];
-    const updated = await db.updateMessage(chatId, messageId, { reactions, isPinned: Boolean(message.isPinned) });
+    const updated = await telegramService.toggleMessageReaction(chatId, messageId, emoji);
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

@@ -154,7 +154,7 @@ class TelegramService {
       while (runner.active) {
         try {
           const updates = await this.apiCall<TelegramUpdate[]>('getUpdates', {
-            ...(offset === undefined ? {} : { offset }), timeout: 25, allowed_updates: ['message', 'callback_query'],
+            ...(offset === undefined ? {} : { offset }), timeout: 25, allowed_updates: ['message', 'callback_query', 'message_reaction', 'message_reaction_count'],
           }, runner.controller.signal, runner.token);
           const runtime = this.getManagedBotRuntimeStatus(botId);
           if (runtime.lastError || runtime.consecutiveErrors) {
@@ -212,7 +212,7 @@ class TelegramService {
         const updates = await this.apiCall<TelegramUpdate[]>('getUpdates', {
           ...(offset === undefined ? {} : { offset }),
           timeout: 25,
-          allowed_updates: ['message', 'callback_query'],
+          allowed_updates: ['message', 'callback_query', 'message_reaction', 'message_reaction_count'],
         });
         this.telegramConnected = true;
         this.connectionError = null;
@@ -314,6 +314,7 @@ class TelegramService {
     const chat = (await db.getChats(undefined, undefined, botId)).find((item) => item.telegramChatId === chatId && (item.messageThreadId || 0) === (threadId || 0));
     if (!chat) return;
     const outgoing: Message = {
+      telegramMessageId: sent.message_id,
       id: `tg_menu_${scopedId}_${sent.message_id}`,
       chatId: chat.id,
       senderId: `bot_${botId}`,
@@ -340,6 +341,7 @@ class TelegramService {
       },
     }, undefined, token);
     const outgoing: Message = {
+      telegramMessageId: result.message_id,
       id: `tg_verify_${createHash('sha1').update(`${chat.botId}:${result.message_id}`).digest('hex').slice(0, 24)}`,
       chatId: chat.id,
       senderId: `bot_${chat.botId || 'telegram'}`,
@@ -714,7 +716,7 @@ class TelegramService {
       ...(input.buttonUrl ? { reply_markup: { inline_keyboard: [[{ text: input.buttonText, url: input.buttonUrl }]] } } : {}),
     };
     let delivered = false;
-    let deliveredContent: { text?: string; caption?: string; entities?: Message['entities']; caption_entities?: Message['entities'] } | undefined;
+    let deliveredContent: { message_id?: number; text?: string; caption?: string; entities?: Message['entities']; caption_entities?: Message['entities'] } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       let requestBody: string | FormData = JSON.stringify(body);
       let headers: Record<string, string> | undefined = { 'Content-Type': 'application/json' };
@@ -743,6 +745,7 @@ class TelegramService {
     }
     if (!delivered) throw new Error('Telegram đang giới hạn gửi tin.');
     const message: Message = {
+      telegramMessageId: deliveredContent?.message_id,
       id: `broadcast_${uuidv4()}`, chatId, senderId: `bot_${bot.id}`, senderName: bot.name,
       text: deliveredContent?.text ?? deliveredContent?.caption ?? `${input.title}\n\n${input.content}`, type: input.imageUrl ? 'image' : 'text',
       entities: deliveredContent?.entities ?? deliveredContent?.caption_entities,
@@ -751,6 +754,63 @@ class TelegramService {
     // A local logging failure must not turn a delivered Telegram message into a retry candidate.
     try { await db.addMessage(message); socketService.broadcastNewMessage(chatId, message, chat); }
     catch { console.error('[Broadcast] Telegram delivered; could not save conversation message.'); }
+  }
+
+  private telegramId(message: Message): number | undefined {
+    // Legacy incoming/menu IDs embed the Telegram ID; old outgoing IDs do not.
+    return message.telegramMessageId || (message.id.startsWith('tg_') ? Number(message.id.match(/_(\d+)$/)?.[1]) || undefined : undefined);
+  }
+
+  async toggleMessageReaction(chatId: string, messageId: string, emoji: string): Promise<Message | null> {
+    const chat = await db.getChatById(chatId);
+    const message = await db.getMessageById(chatId, messageId);
+    if (!chat || !message) throw new Error('Message not found');
+    const remove = message.reactions?.[emoji]?.includes('user_agent_me');
+    const bot = await this.getBotForChat(chat);
+    const token = bot?.token || config.telegram.botToken;
+    if ((bot ? bot.mode !== 'mock' : config.telegram.mode !== 'mock') && chat.telegramChatId && !chat.telegramChatId.startsWith('mock_')) {
+      const id = this.telegramId(message);
+      if (!id) throw new Error('Tin nh\u1eafn c\u0169 ch\u01b0a l\u01b0u m\u00e3 Telegram n\u00ean kh\u00f4ng th\u1ec3 \u0111\u1ed3ng b\u1ed9 c\u1ea3m x\u00fac. H\u00e3y th\u1eed v\u1edbi tin nh\u1eafn m\u1edbi.');
+      if (!token) throw new Error('Telegram bot token is missing');
+      await this.apiCall('setMessageReaction', { chat_id: chat.telegramChatId, message_id: id, reaction: remove ? [] : [{ type: 'emoji', emoji }] }, undefined, token);
+    }
+    const reactions: Record<string, string[]> = {};
+    for (const [key, users] of Object.entries(message.reactions || {})) {
+      const remaining = users.filter(user => user !== 'user_agent_me');
+      if (remaining.length) reactions[key] = remaining;
+    }
+    if (!remove) reactions[emoji] = [...(reactions[emoji] || []), 'user_agent_me'];
+    const updated = await db.updateMessage(chatId, messageId, { reactions, isPinned: message.isPinned });
+    if (updated) socketService.broadcastMessageUpdated(updated);
+    return updated;
+  }
+
+  private async handleReactionUpdate(update: any, botId?: string): Promise<void> {
+    if (!update.chat || !Number.isInteger(update.message_id)) return;
+    const chats = (await db.getChats(undefined, undefined, botId ?? null)).filter(chat => chat.telegramChatId === String(update.chat.id));
+    for (const chat of chats) {
+      const message = (await db.getMessages(chat.id)).find(item => this.telegramId(item) === update.message_id);
+      if (!message) continue;
+      let reactions = { ...(message.reactions || {}) };
+      if (Array.isArray(update.new_reaction)) {
+        const actor = update.user ? 'tg_user_' + update.user.id : update.actor_chat ? 'tg_chat_' + update.actor_chat.id : undefined;
+        if (!actor) return;
+        reactions = Object.fromEntries(Object.entries(reactions).map(([emoji, users]) => [emoji, users.filter(user => user !== actor)]).filter(([, users]) => users.length));
+        for (const reaction of update.new_reaction) {
+          const emoji = reaction.type === 'emoji' ? reaction.emoji : reaction.type === 'custom_emoji' ? 'custom:' + reaction.custom_emoji_id : undefined;
+          if (emoji) reactions[emoji] = [...(reactions[emoji] || []), actor];
+        }
+      } else if (Array.isArray(update.reactions)) {
+        reactions = {};
+        for (const count of update.reactions) {
+          const emoji = count.type.type === 'emoji' ? count.type.emoji : count.type.type === 'custom_emoji' ? 'custom:' + count.type.custom_emoji_id : undefined;
+          if (emoji) reactions[emoji] = Array.from({ length: count.total_count }, (_, i) => 'tg_anonymous_' + i);
+        }
+      } else return;
+      const updated = await db.updateMessage(chat.id, message.id, { reactions, isPinned: message.isPinned });
+      if (updated) socketService.broadcastMessageUpdated(updated);
+      return;
+    }
   }
 
   async sendMessage(chatId: string, text: string, options: { replyToId?: string; forwardedFrom?: string; replyMarkup?: Record<string, unknown> } = {}): Promise<Message & { telegramMessageId?: number }> {
@@ -784,6 +844,7 @@ class TelegramService {
         ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       }, undefined, token);
       telegramMessageId = sent.message_id;
+      message.telegramMessageId = sent.message_id;
       message.status = 'delivered';
     }
 
@@ -823,8 +884,9 @@ class TelegramService {
       form.append(field, new Blob([new Uint8Array(file.data)], { type: file.mimeType }), file.fileName);
       if (file.caption?.trim()) form.append('caption', file.caption.trim().slice(0, 1024));
       const response = await fetch('https://api.telegram.org/bot' + token + '/' + method, { method: 'POST', body: form });
-      const result = await response.json() as TelegramApiResponse<unknown>;
+      const result = await response.json() as TelegramApiResponse<{ message_id: number }>;
       if (!response.ok || !result.ok) throw new Error(result.description || 'Telegram API ' + method + ' failed (' + response.status + ')');
+      message.telegramMessageId = result.result.message_id;
       message.status = 'delivered';
     }
 
@@ -837,6 +899,10 @@ class TelegramService {
    * Handle incoming Webhook payload from Telegram Bot API
    */
   async handleWebhookUpdate(update: any, botContext?: { botId: string; token: string }): Promise<void> {
+    if (update?.message_reaction || update?.message_reaction_count) {
+      await this.handleReactionUpdate(update.message_reaction || update.message_reaction_count, botContext?.botId);
+      return;
+    }
     if (update?.callback_query) {
       const callbackData = typeof update.callback_query.data === 'string' ? update.callback_query.data : '';
       if (/^(cart|product_detail|product_buy|purchase_confirm|purchase_cancel|purchase_edit):/.test(callbackData) && botContext) {
@@ -972,6 +1038,7 @@ class TelegramService {
     if (typeof tgMessage.text !== 'string' && !attachment) return;
     const incomingMessage: Message = {
       id: `tg_${messageOwnerKey}_${tgChatId}_${tgMessage.message_id}`,
+      telegramMessageId: tgMessage.message_id,
       chatId: destination.id,
       senderId: user.id,
       senderName: [fromUser.first_name, fromUser.last_name].filter(Boolean).join(' '),

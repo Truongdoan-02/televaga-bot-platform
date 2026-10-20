@@ -84,6 +84,7 @@ export interface Message {
   isOutgoing: boolean; // true if sent by agent/system, false if from customer
   status: MessageStatus;
   replyToId?: string;
+  telegramMessageId?: number;
   reactions?: Record<string, string[]>;
   isPinned?: boolean;
   forwardedFrom?: string;

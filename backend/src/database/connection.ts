@@ -215,6 +215,7 @@ class DatabaseService {
     const messageColumns = [
       ['entities', 'JSON NULL'],
       ['reactions', 'JSON NULL'],
+      ['telegram_message_id', 'BIGINT NULL'],
       ['is_pinned', 'BOOLEAN NOT NULL DEFAULT FALSE'],
       ['forwarded_from', 'VARCHAR(150) NULL'],
     ] as const;
@@ -779,6 +780,7 @@ class DatabaseService {
         isOutgoing: Boolean(r.is_outgoing),
         status: r.status,
         replyToId: r.reply_to_id,
+        telegramMessageId: r.telegram_message_id == null ? undefined : Number(r.telegram_message_id),
         reactions: typeof r.reactions === 'string' ? JSON.parse(r.reactions) : (r.reactions || {}),
         isPinned: Boolean(r.is_pinned),
         forwardedFrom: r.forwarded_from || undefined,
@@ -793,9 +795,9 @@ class DatabaseService {
   async addMessage(msg: Message): Promise<Message> {
     if (this.isUsingMySQL && this.pool) {
       await this.pool.query(
-        `INSERT INTO messages (id, chat_id, sender_id, sender_name, text, type, media_url, file_name, file_size, is_outgoing, status, reply_to_id, reactions, is_pinned, forwarded_from, created_at, entities)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [msg.id, msg.chatId, msg.senderId, msg.senderName || null, msg.text, msg.type, msg.mediaUrl || null, msg.fileName || null, msg.fileSize || null, msg.isOutgoing, msg.status, msg.replyToId || null, JSON.stringify(msg.reactions || {}), Boolean(msg.isPinned), msg.forwardedFrom || null, msg.createdAt, JSON.stringify(msg.entities || [])]
+        `INSERT INTO messages (id, chat_id, sender_id, sender_name, text, type, media_url, file_name, file_size, is_outgoing, status, reply_to_id, reactions, is_pinned, forwarded_from, created_at, entities, telegram_message_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [msg.id, msg.chatId, msg.senderId, msg.senderName || null, msg.text, msg.type, msg.mediaUrl || null, msg.fileName || null, msg.fileSize || null, msg.isOutgoing, msg.status, msg.replyToId || null, JSON.stringify(msg.reactions || {}), Boolean(msg.isPinned), msg.forwardedFrom || null, msg.createdAt, JSON.stringify(msg.entities || []), msg.telegramMessageId || null]
       );
       // Update chat's updated_at and unread_count
       const unreadIncrement = msg.isOutgoing ? 0 : 1;

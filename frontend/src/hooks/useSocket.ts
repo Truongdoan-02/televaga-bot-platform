@@ -27,6 +27,7 @@ function getSocket(): Socket {
 
 interface UseSocketOptions {
   activeChatId?: string | null;
+  onMessageUpdated?: (message: Message) => void;
   onNewMessage?: (message: Message) => void;
   onChatActivity?: (data: { chatId: string; lastMessage: Message; timestamp: string }) => void;
   onUserTyping?: (data: { chatId: string; userId: string; isTyping: boolean }) => void;
@@ -37,6 +38,7 @@ interface UseSocketOptions {
 export function useSocket({
   activeChatId,
   onNewMessage,
+  onMessageUpdated,
   onChatActivity,
   onUserTyping,
   onChatMarkedRead,
@@ -63,6 +65,8 @@ export function useSocket({
     };
     const handleChatStructureChanged = (data: { parentChatId: string }) => onChatStructureChanged?.(data);
 
+    const handleUpdated = (message: Message) => onMessageUpdated?.(message);
+    socket.on('message_updated', handleUpdated);
     socket.on('new_message', handleNewMessage);
     socket.on('chat_activity', handleChatActivity);
     socket.on('user_typing', handleTyping);
@@ -70,13 +74,14 @@ export function useSocket({
     socket.on('chat_structure_changed', handleChatStructureChanged);
 
     return () => {
+      socket.off('message_updated', handleUpdated);
       socket.off('new_message', handleNewMessage);
       socket.off('chat_activity', handleChatActivity);
       socket.off('user_typing', handleTyping);
       socket.off('chat_marked_read', handleChatRead);
       socket.off('chat_structure_changed', handleChatStructureChanged);
     };
-  }, [onNewMessage, onChatActivity, onUserTyping, onChatMarkedRead, onChatStructureChanged]);
+  }, [onMessageUpdated, onNewMessage, onChatActivity, onUserTyping, onChatMarkedRead, onChatStructureChanged]);
 
   // Join/leave chat rooms
   useEffect(() => {
