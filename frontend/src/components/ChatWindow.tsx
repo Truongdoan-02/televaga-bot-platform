@@ -10,6 +10,7 @@ import {
 import { Chat, Message } from '@/types';
 import MessageText from './MessageText';
 import MessageMedia from './MessageMedia';
+import MessageReactions from './MessageReactions';
 
 
 const REACTIONS = ['❤️', '👍', '👎', '🔥', '🥰', '👏', '😁'];
@@ -594,13 +595,7 @@ export default function ChatWindow({
                             {(!message.mediaUrl || message.text !== message.fileName) && <div className="bubble-text"><MessageText message={message} /></div>}
                             <div className="bubble-meta"><span className="bubble-time">{formatMsgTime(message.createdAt)}</span>{group.isOutgoing && <span className="bubble-status"><StatusIcon status={message.status} /></span>}</div>
                           </div>
-                          {Object.entries(message.reactions || {}).filter(([, users]) => users.length > 0).length > 0 && (
-                            <div className={'message-reactions' + (group.isOutgoing ? ' align-right' : '')}>
-                              {Object.entries(message.reactions || {}).filter(([, users]) => users.length > 0).map(([emoji, users]) => (
-                                <button key={emoji} className={users.includes('user_agent_me') ? 'active' : ''} onClick={() => onReactMessage(message.id, emoji).catch(showError)}>{emoji} <span>{users.length}</span></button>
-                              ))}
-                            </div>
-                          )}
+                          <MessageReactions message={message} chat={chat} onReact={(id, emoji) => onReactMessage(id, emoji).catch(showError)} />
                         </div>
                       </div>
                     );
