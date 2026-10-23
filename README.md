@@ -1,4 +1,4 @@
-﻿# Demo TeleVaga
+# TeleVaga Bot Platform
 
 Ứng dụng web quản lý hội thoại Telegram, nhiều bot, sản phẩm, luồng mua ngay và thông báo hàng loạt. Nhân viên thao tác trên web; khách hàng tương tác với bot trong Telegram.
 
@@ -9,19 +9,29 @@
 - **Tin nhắn:** gửi văn bản, ảnh, video, tài liệu; cập nhật qua Socket.IO; hỗ trợ emoji, tìm kiếm, ghim, reaction và chuyển tiếp trong ứng dụng.
 - **Nhóm và topic:** hiển thị nhóm, các topic đã lưu và tạo topic Telegram khi bot có quyền phù hợp.
 - **Sản phẩm:** danh sách và chi tiết có emoji, giá và trạng thái tồn kho.
-- **Mua ngay:** xác minh khách hàng, nhập thông tin nhận hàng và số lượng, chỉnh sửa/hủy, xác nhận đơn và trừ tồn kho.
+- **Mua ngay:** xác minh khách hàng, nhập thông tin nhận hàng và số lượng, chỉnh sửa/hủy, xác nhận đơn và giữ hàng trong kho.
 - **Tra cứu:** kiểm tra đơn và xem tối đa 10 đơn gần nhất của khách đã xác minh.
 - **Thông báo:** bản nháp, gửi ngay, đặt lịch, chọn nhóm nhận, đính kèm ảnh/liên kết và theo dõi kết quả.
 - **Bảo trì:** cấu hình thông điệp và tùy chọn thông báo khi bật/tắt bảo trì.
 
 ### Phạm vi hiện tại
 
-- **Thêm vào giỏ** chỉ minh họa và hiện thông báo nhỏ; không lưu giỏ. Phần xem giỏ hàng và Mini App đã được bỏ.
-- **Mua ngay** mua một loại sản phẩm với số lượng khách nhập; đơn mới chưa thanh toán, phí vận chuyển được xác nhận sau.
-- AI có API và `AIPanel.tsx`, nhưng panel chưa được gắn vào màn hình chính. Giao diện hiện không có nút giả lập tin nhắn.
-- Reaction, ghim và xóa tin tác động lên dữ liệu ứng dụng, chưa đồng bộ các thao tác tương ứng lên Telegram. Tạo nhóm trong web tạo nhóm nội bộ, không tạo nhóm Telegram thật.
+- Shop Mini App có giỏ hàng lưu theo từng Shop trong `localStorage`, mua nhanh và đặt đơn nhiều sản phẩm. Đặt hàng, tra cứu và lịch sử yêu cầu phiên Telegram hợp lệ.
+- Luồng mua qua tin nhắn bot hỗ trợ một sản phẩm với số lượng khách nhập. Đơn mới chưa thanh toán; phí vận chuyển xác nhận sau.
+- Đơn mới giữ hàng, chưa giảm tồn thực tế. Xuất giao giảm tồn; hủy giải phóng hàng giữ. Tồn có thể bán = tồn thực tế − hàng đang giữ.
+- Reaction đồng bộ với Telegram khi bot có quyền phù hợp. Ghim và xóa tin hiện tác động lên dữ liệu ứng dụng; tạo nhóm trên web tạo nhóm nội bộ.
+- API AI và `AIPanel.tsx` có sẵn nhưng panel chưa gắn vào trang chính.
 
-Hướng dẫn chi tiết gửi thông báo: [BROADCAST.md](BROADCAST.md).
+## Tài liệu chi tiết
+
+| Nội dung | Tài liệu |
+| --- | --- |
+| Nhà cung cấp và mã sản phẩm | [SUPPLIERS.md](SUPPLIERS.md) |
+| Sản phẩm và ảnh | [PRODUCTS.md](PRODUCTS.md) |
+| Tồn kho, phiếu kho và giữ hàng | [INVENTORY.md](INVENTORY.md) |
+| Shop Mini App và quản trị đơn hàng | [SHOP.md](SHOP.md) |
+| Thông báo và bảo trì | [BROADCAST.md](BROADCAST.md) |
+| Triển khai Render | [DEPLOY.md](DEPLOY.md) |
 
 ## Công nghệ và cấu trúc
 
@@ -181,7 +191,7 @@ Sau khi MySQL và bot sẵn sàng:
 4. Kiểm tra bản xác nhận, chỉnh sửa/hủy hoặc đặt đơn.
 5. Dùng **Tra cứu đơn** hoặc **Lịch sử mua** với cùng tài khoản đã xác minh.
 
-Dữ liệu liên kết qua `order_items.order_id = orders.id`. Xác nhận mua sẽ tạo đơn và trừ tồn kho; dùng dữ liệu thử nghiệm khi trình diễn.
+Dữ liệu liên kết qua `order_items.order_id = orders.id`. Xác nhận mua tạo đơn và giữ hàng trong cùng transaction; dùng dữ liệu thử nghiệm khi trình diễn.
 
 Nếu bảng nút chưa khớp menu hiện tại, chạy trong `backend`:
 
@@ -190,6 +200,19 @@ npm.cmd run sync:bot-buttons
 ```
 
 Lệnh này **cập nhật dữ liệu và cấu trúc bảng `bot_buttons`**, đồng thời lưu bản sao lưu trong `backend/data/backups`. Không cần chạy mỗi lần khởi động.
+
+## Danh mục, kho, đơn hàng và Shop
+
+Mở menu 9 chấm để vào **Nhà cung cấp**, **Sản phẩm**, **Tồn kho** hoặc **Đơn hàng**.
+
+- Tạo nhà cung cấp trước khi tạo sản phẩm. Sản phẩm hỗ trợ ảnh, định lượng, giá và trạng thái bán; sản phẩm mới có tồn 0.
+- Lập phiếu nhập/xuất/kiểm kê/trả hàng cho một hoặc nhiều sản phẩm. Kho theo dõi tồn thực tế, hàng đang giữ, ngưỡng cảnh báo và lịch sử biến động.
+- Tìm kiếm, lọc và xem chi tiết đơn hàng; duyệt, chuẩn bị, giao, hoàn tất hoặc hủy đơn. Thao tác giao/hủy cập nhật kho trong cùng transaction.
+- Shop có danh mục, tìm kiếm, ảnh, chi tiết, giỏ, mua nhanh, tra cứu và lịch sử đơn. Đơn nhiều sản phẩm được tạo và giữ hàng trong cùng transaction.
+
+Shop được phục vụ tại `/api/shop/view?botId=<id>`. Đặt hàng cần mở bằng nút Shop trong Telegram với `initData` hợp lệ. Cấu hình `PUBLIC_BACKEND_URL` là HTTPS công khai; `TELEGRAM_SHOP_URL` có thể ghi đè URL Shop, `SHOP_WEB_URL` cấu hình liên kết website. Xem [SHOP.md](SHOP.md).
+
+Đơn đi qua `NEW → CONFIRMED → PACKING → SHIPPING → DELIVERED`; có thể giao từ `CONFIRMED`, hoặc hủy trước khi giao. Nhận trả hàng đã giao thực hiện trong phân hệ tồn kho và không tự hoàn tiền. Xem [INVENTORY.md](INVENTORY.md).
 
 ## Thông báo và AI
 
@@ -207,7 +230,8 @@ API AI có tóm tắt, gợi ý phản hồi và trò chuyện theo ngữ cảnh
 cd backend
 npm.cmd run build
 npx.cmd tsx scripts/testPurchaseFlow.ts
-node --import tsx --test src/services/broadcastService.test.ts src/services/broadcastImages.test.ts
+node --import tsx --test src/services/*.test.ts
+npm.cmd run test:auth
 ```
 
 Kiểm thử mua cần MySQL có schema nghiệp vụ phù hợp, dùng bảng tạm thay vì tạo đơn khách hàng thật. Kiểm thử broadcast dùng bộ gửi giả lập.
@@ -221,6 +245,12 @@ node scripts/messageText.test.cjs
 ```
 
 Sau khi build, chạy `npm.cmd start` trong mỗi thư mục tương ứng để dùng bản đã build.
+
+## Triển khai
+
+Repo có `render.yaml`, `deploy/build.cjs` và `deploy/server.cjs` để build và chạy frontend/backend qua gateway cùng origin. Xem [DEPLOY.md](DEPLOY.md) để cấu hình MySQL, TLS, tài khoản quản trị và khóa mã hóa. Cấu hình hiện tại tắt tự động deploy, bật `DB_REQUIRED` và `BNK_REQUIRED` để dừng khởi động khi thiếu database/schema cần thiết.
+
+Dừng polling ở môi trường cũ trước khi bật cùng token tại môi trường mới. Giữ nguyên khóa mã hóa khi chuyển token bot đã lưu.
 
 ## Phạm vi vận hành
 
