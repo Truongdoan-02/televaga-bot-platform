@@ -1,12 +1,13 @@
+import { telegramMedia } from './telegramMedia.js';
+import { storeUpload, readUpload } from './uploadStore.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { isBroadcastImage, broadcastImagePath } from './broadcastImages.js';
+import { isBroadcastImage } from './broadcastImages.js';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { config } from '../config/index.js';
 import { db } from '../database/connection.js';
 import { bnkDataService } from './bnkDataService.js';
+import { shopCatalog,shopUrl,shopWebUrl } from './shopService.js';
 import { broadcastService, type BroadcastInput } from './broadcastService.js';
 import { Message, Chat, User } from '../types/index.js';
 import { socketService } from './socketService.js';
@@ -53,7 +54,6 @@ class TelegramService {
     return this.managedRuntime.get(botId) || { polling: false };
   }
   private readonly avatarCache = new Map<string, string | null>();
-  private readonly avatarDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/uploads/telegram-avatars');
 
   getStatus() {
     const runningManaged = [...this.managedRuntime.values()].filter((runtime) => runtime.polling).length;
@@ -154,7 +154,7 @@ class TelegramService {
       while (runner.active) {
         try {
           const updates = await this.apiCall<TelegramUpdate[]>('getUpdates', {
-            ...(offset === undefined ? {} : { offset }), timeout: 25, allowed_updates: ['message', 'callback_query'],
+            ...(offset === undefined ? {} : { offset }), timeout: 25, allowed_updates: ['message', 'callback_query', 'message_reaction', 'message_reaction_count'],
           }, runner.controller.signal, runner.token);
           const runtime = this.getManagedBotRuntimeStatus(botId);
           if (runtime.lastError || runtime.consecutiveErrors) {
@@ -197,9 +197,11 @@ class TelegramService {
       this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false, lastError: error instanceof Error ? error.message : 'Telegram connection failed' });
       if (bot && runner.active) await db.updateManagedBot(botId, bot.name, undefined, { status: 'error', lastError: error instanceof Error ? error.message : 'Telegram connection failed', isEnabled: false });
     } finally {
-      this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false });
-      if (this.managedPollers.get(botId) === runner) this.managedPollers.delete(botId);
-      if (runner.active) void this.syncManagedBots();
+      if (this.managedPollers.get(botId) === runner) {
+        this.managedPollers.delete(botId);
+        this.managedRuntime.set(botId, { ...this.getManagedBotRuntimeStatus(botId), polling: false });
+        if (runner.active) void this.syncManagedBots();
+      }
     }
   }
 
@@ -210,7 +212,7 @@ class TelegramService {
         const updates = await this.apiCall<TelegramUpdate[]>('getUpdates', {
           ...(offset === undefined ? {} : { offset }),
           timeout: 25,
-          allowed_updates: ['message', 'callback_query'],
+          allowed_updates: ['message', 'callback_query', 'message_reaction', 'message_reaction_count'],
         });
         this.telegramConnected = true;
         this.connectionError = null;
@@ -239,9 +241,8 @@ class TelegramService {
       const extension = path.extname(file.file_path).toLowerCase();
       const safeExtension = ['.jpg', '.jpeg', '.png', '.webp'].includes(extension) ? extension : '.jpg';
       const filename = createHash('sha256').update(ownerKey + ':' + fileId).digest('hex') + safeExtension;
-      await mkdir(this.avatarDirectory, { recursive: true });
-      await writeFile(path.join(this.avatarDirectory, filename), Buffer.from(await response.arrayBuffer()));
-      const avatarUrl = config.telegram.publicBackendUrl + '/uploads/telegram-avatars/' + filename;
+      const avatarUrl = '/uploads/telegram-avatars/' + filename;
+      await storeUpload(avatarUrl, Buffer.from(await response.arrayBuffer()));
       this.avatarCache.set(cacheKey, avatarUrl);
       return avatarUrl;
     } catch (error) {
@@ -313,6 +314,7 @@ class TelegramService {
     const chat = (await db.getChats(undefined, undefined, botId)).find((item) => item.telegramChatId === chatId && (item.messageThreadId || 0) === (threadId || 0));
     if (!chat) return;
     const outgoing: Message = {
+      telegramMessageId: sent.message_id,
       id: `tg_menu_${scopedId}_${sent.message_id}`,
       chatId: chat.id,
       senderId: `bot_${botId}`,
@@ -339,6 +341,7 @@ class TelegramService {
       },
     }, undefined, token);
     const outgoing: Message = {
+      telegramMessageId: result.message_id,
       id: `tg_verify_${createHash('sha1').update(`${chat.botId}:${result.message_id}`).digest('hex').slice(0, 24)}`,
       chatId: chat.id,
       senderId: `bot_${chat.botId || 'telegram'}`,
@@ -362,31 +365,35 @@ class TelegramService {
   }
 
   private async sendProductCards(chat: Chat, token: string): Promise<void> {
-    const products = await bnkDataService.getProducts();
-    if (!products.length) {
-      await this.sendMessage(chat.id, 'Hiện chưa có sản phẩm đang kinh doanh trong hệ thống.');
-      return;
+    const catalog=chat.botId?await shopCatalog(chat.botId):null;
+    const products=catalog?.products||[];
+    if(!products.length){await this.sendMessage(chat.id,'Hiện chưa có sản phẩm đang kinh doanh trong hệ thống.');return;}
+    const text=['🛍️ DANH SÁCH SẢN PHẨM',''];
+    for(const [index,product] of products.slice(0,8).entries()){
+      text.push('📦 '+(index+1)+'. '+product.name,'💰 Giá: '+product.price.toLocaleString('vi-VN')+' ₫','🏷️ '+product.quantity+' · '+(product.status==='in_stock'?'Còn hàng':'Hết hàng'),'');
     }
-    for (const product of products) {
-      const description = product.description.trim() || 'Thông tin đang được cập nhật.';
-      const purchaseIntent = uuidv4().replace(/-/g, '').slice(0, 12);
-      const text = [
-        `📦 ${product.name}`,
-        `ℹ️ Công dụng / thông tin: ${description}`,
-        `💰 Giá: ${product.price.toLocaleString('vi-VN')}₫`,
-      ].join('\n');
-      await this.sendMessage(chat.id, text, {
-        replyMarkup: {
-          inline_keyboard: [[
-            { text: '🔎 Chi tiết', callback_data: `product_detail:${product.id}` },
-            { text: '🛍️ Mua ngay', callback_data: `product_buy:${product.id}:${purchaseIntent}` },
-            { text: '🛒 Thêm vào giỏ', callback_data: `cart:add:${product.id}` },
-          ]],
-        },
-      });
-    }
+    if(products.length>8)text.push('Và '+(products.length-8)+' sản phẩm khác.');
+    text.push('Mở Shop để xem hình ảnh, chi tiết và mua sản phẩm.');
+    const url=shopUrl(chat.botId!);
+    const shopButton=chat.type==='direct'&&url.startsWith('https://')
+      ?{text:'🛒 Shop',web_app:{url}}
+      :{text:'🛒 Shop',url:chat.type!=='direct'&&catalog?.username?'https://t.me/'+catalog.username.replace(/^@/,'')+'?start=shop':url};
+    await this.sendMessage(chat.id,text.join('\n'),{replyMarkup:{inline_keyboard:[[shopButton,{text:'🌐 Shop Web',url:shopWebUrl()}]]}});
   }
 
+  private async beginProductPurchase(chat:Chat,productId:number,telegramUserId:string,telegramChatId:string,botContext:{botId:string;token:string}):Promise<void>{
+    if(broadcastService.getMaintenance().enabled){await this.sendMessage(chat.id,broadcastService.getMaintenance().message);return;}
+    const managedBot=await db.getManagedBotById(botContext.botId);
+    const telegramBotId=managedBot?.telegramBotId||managedBot?.username||botContext.botId;
+    if(!managedBot?.isEnabled){await this.sendMessage(chat.id,'Shop hiện chưa hoạt động.');return;}
+    if(!bnkDataService.isReady()){await this.sendMessage(chat.id,'Dữ liệu đặt hàng hiện chưa sẵn sàng. Vui lòng thử lại sau.');return;}
+    const product=await bnkDataService.getProduct(productId);
+    if(!product||product.stockQuantity<1){await this.sendMessage(chat.id,'Sản phẩm hiện không còn hàng.');return;}
+    await bnkDataService.startPurchaseDraft(telegramUserId,telegramChatId,telegramBotId,product.id);
+    const buyer=await bnkDataService.getVerifiedBuyer(telegramUserId,telegramChatId,telegramBotId);
+    if(!buyer)await this.sendContactVerificationPrompt(chat,botContext.token,'purchase');
+    else await this.sendPurchaseInputPrompt(chat,telegramUserId,telegramBotId,'Vui lòng nhập họ tên người nhận.');
+  }
   private async findTelegramAppChat(telegramChatId: string, threadId: number, botId: string): Promise<Chat | null> {
     const chats = await db.getChats(undefined, undefined, botId);
     return chats.find((item) => item.telegramChatId === telegramChatId && (item.messageThreadId || 0) === threadId)
@@ -480,21 +487,7 @@ class TelegramService {
         await this.sendMessage(chat.id, await this.getFlowPrompt(botContext.botId, 'private_chat_required'));
         return;
       }
-      const managedBot = await db.getManagedBotById(botContext.botId);
-      const telegramBotId = managedBot?.telegramBotId || managedBot?.username || botContext.botId;
-      if (!bnkDataService.isReady()) {
-        await this.sendMessage(chat.id, 'Dữ liệu đặt hàng hiện chưa sẵn sàng. Vui lòng thử lại sau.');
-        return;
-      }
-      const product = await bnkDataService.getProduct(Number(buyMatch[1]));
-      if (!product || product.stockQuantity < 1) {
-        await this.sendMessage(chat.id, 'Sản phẩm hiện không còn hàng.');
-        return;
-      }
-      await bnkDataService.startPurchaseDraft(String(query.from.id), telegramChatId, telegramBotId, product.id);
-      const buyer = await bnkDataService.getVerifiedBuyer(String(query.from.id), telegramChatId, telegramBotId);
-      if (!buyer) await this.sendContactVerificationPrompt(chat, botContext.token, 'purchase');
-      else await this.sendPurchaseInputPrompt(chat, String(query.from.id), telegramBotId, 'Vui lòng nhập họ tên người nhận.');
+      await this.beginProductPurchase(chat,Number(buyMatch[1]),String(query.from.id),telegramChatId,botContext);
       return;
     }
 
@@ -723,7 +716,7 @@ class TelegramService {
       ...(input.buttonUrl ? { reply_markup: { inline_keyboard: [[{ text: input.buttonText, url: input.buttonUrl }]] } } : {}),
     };
     let delivered = false;
-    let deliveredContent: { text?: string; caption?: string; entities?: Message['entities']; caption_entities?: Message['entities'] } | undefined;
+    let deliveredContent: { message_id?: number; text?: string; caption?: string; entities?: Message['entities']; caption_entities?: Message['entities'] } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       let requestBody: string | FormData = JSON.stringify(body);
       let headers: Record<string, string> | undefined = { 'Content-Type': 'application/json' };
@@ -732,7 +725,9 @@ class TelegramService {
         for (const [key, value] of Object.entries(body)) {
           if (key !== 'photo') form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
         }
-        const image = await readFile(broadcastImagePath(input.imageUrl));
+        const asset = await readUpload(input.imageUrl);
+        if (!asset) throw new Error('Broadcast image is unavailable');
+        const image = asset.data;
         const extension = path.extname(input.imageUrl).slice(1);
         form.append('photo', new Blob([new Uint8Array(image)], { type: extension === 'jpg' ? 'image/jpeg' : `image/${extension}` }), path.basename(input.imageUrl));
         requestBody = form; headers = undefined;
@@ -750,6 +745,7 @@ class TelegramService {
     }
     if (!delivered) throw new Error('Telegram đang giới hạn gửi tin.');
     const message: Message = {
+      telegramMessageId: deliveredContent?.message_id,
       id: `broadcast_${uuidv4()}`, chatId, senderId: `bot_${bot.id}`, senderName: bot.name,
       text: deliveredContent?.text ?? deliveredContent?.caption ?? `${input.title}\n\n${input.content}`, type: input.imageUrl ? 'image' : 'text',
       entities: deliveredContent?.entities ?? deliveredContent?.caption_entities,
@@ -758,6 +754,63 @@ class TelegramService {
     // A local logging failure must not turn a delivered Telegram message into a retry candidate.
     try { await db.addMessage(message); socketService.broadcastNewMessage(chatId, message, chat); }
     catch { console.error('[Broadcast] Telegram delivered; could not save conversation message.'); }
+  }
+
+  private telegramId(message: Message): number | undefined {
+    // Legacy incoming/menu IDs embed the Telegram ID; old outgoing IDs do not.
+    return message.telegramMessageId || (message.id.startsWith('tg_') ? Number(message.id.match(/_(\d+)$/)?.[1]) || undefined : undefined);
+  }
+
+  async toggleMessageReaction(chatId: string, messageId: string, emoji: string): Promise<Message | null> {
+    const chat = await db.getChatById(chatId);
+    const message = await db.getMessageById(chatId, messageId);
+    if (!chat || !message) throw new Error('Message not found');
+    const remove = message.reactions?.[emoji]?.includes('user_agent_me');
+    const bot = await this.getBotForChat(chat);
+    const token = bot?.token || config.telegram.botToken;
+    if ((bot ? bot.mode !== 'mock' : config.telegram.mode !== 'mock') && chat.telegramChatId && !chat.telegramChatId.startsWith('mock_')) {
+      const id = this.telegramId(message);
+      if (!id) throw new Error('Tin nh\u1eafn c\u0169 ch\u01b0a l\u01b0u m\u00e3 Telegram n\u00ean kh\u00f4ng th\u1ec3 \u0111\u1ed3ng b\u1ed9 c\u1ea3m x\u00fac. H\u00e3y th\u1eed v\u1edbi tin nh\u1eafn m\u1edbi.');
+      if (!token) throw new Error('Telegram bot token is missing');
+      await this.apiCall('setMessageReaction', { chat_id: chat.telegramChatId, message_id: id, reaction: remove ? [] : [{ type: 'emoji', emoji }] }, undefined, token);
+    }
+    const reactions: Record<string, string[]> = {};
+    for (const [key, users] of Object.entries(message.reactions || {})) {
+      const remaining = users.filter(user => user !== 'user_agent_me');
+      if (remaining.length) reactions[key] = remaining;
+    }
+    if (!remove) reactions[emoji] = [...(reactions[emoji] || []), 'user_agent_me'];
+    const updated = await db.updateMessage(chatId, messageId, { reactions, isPinned: message.isPinned });
+    if (updated) socketService.broadcastMessageUpdated(updated);
+    return updated;
+  }
+
+  private async handleReactionUpdate(update: any, botId?: string): Promise<void> {
+    if (!update.chat || !Number.isInteger(update.message_id)) return;
+    const chats = (await db.getChats(undefined, undefined, botId ?? null)).filter(chat => chat.telegramChatId === String(update.chat.id));
+    for (const chat of chats) {
+      const message = (await db.getMessages(chat.id)).find(item => this.telegramId(item) === update.message_id);
+      if (!message) continue;
+      let reactions = { ...(message.reactions || {}) };
+      if (Array.isArray(update.new_reaction)) {
+        const actor = update.user ? 'tg_user_' + update.user.id : update.actor_chat ? 'tg_chat_' + update.actor_chat.id : undefined;
+        if (!actor) return;
+        reactions = Object.fromEntries(Object.entries(reactions).map(([emoji, users]) => [emoji, users.filter(user => user !== actor)]).filter(([, users]) => users.length));
+        for (const reaction of update.new_reaction) {
+          const emoji = reaction.type === 'emoji' ? reaction.emoji : reaction.type === 'custom_emoji' ? 'custom:' + reaction.custom_emoji_id : undefined;
+          if (emoji) reactions[emoji] = [...(reactions[emoji] || []), actor];
+        }
+      } else if (Array.isArray(update.reactions)) {
+        reactions = {};
+        for (const count of update.reactions) {
+          const emoji = count.type.type === 'emoji' ? count.type.emoji : count.type.type === 'custom_emoji' ? 'custom:' + count.type.custom_emoji_id : undefined;
+          if (emoji) reactions[emoji] = Array.from({ length: count.total_count }, (_, i) => 'tg_anonymous_' + i);
+        }
+      } else return;
+      const updated = await db.updateMessage(chat.id, message.id, { reactions, isPinned: message.isPinned });
+      if (updated) socketService.broadcastMessageUpdated(updated);
+      return;
+    }
   }
 
   async sendMessage(chatId: string, text: string, options: { replyToId?: string; forwardedFrom?: string; replyMarkup?: Record<string, unknown> } = {}): Promise<Message & { telegramMessageId?: number }> {
@@ -791,6 +844,7 @@ class TelegramService {
         ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       }, undefined, token);
       telegramMessageId = sent.message_id;
+      message.telegramMessageId = sent.message_id;
       message.status = 'delivered';
     }
 
@@ -830,8 +884,9 @@ class TelegramService {
       form.append(field, new Blob([new Uint8Array(file.data)], { type: file.mimeType }), file.fileName);
       if (file.caption?.trim()) form.append('caption', file.caption.trim().slice(0, 1024));
       const response = await fetch('https://api.telegram.org/bot' + token + '/' + method, { method: 'POST', body: form });
-      const result = await response.json() as TelegramApiResponse<unknown>;
+      const result = await response.json() as TelegramApiResponse<{ message_id: number }>;
       if (!response.ok || !result.ok) throw new Error(result.description || 'Telegram API ' + method + ' failed (' + response.status + ')');
+      message.telegramMessageId = result.result.message_id;
       message.status = 'delivered';
     }
 
@@ -844,6 +899,10 @@ class TelegramService {
    * Handle incoming Webhook payload from Telegram Bot API
    */
   async handleWebhookUpdate(update: any, botContext?: { botId: string; token: string }): Promise<void> {
+    if (update?.message_reaction || update?.message_reaction_count) {
+      await this.handleReactionUpdate(update.message_reaction || update.message_reaction_count, botContext?.botId);
+      return;
+    }
     if (update?.callback_query) {
       const callbackData = typeof update.callback_query.data === 'string' ? update.callback_query.data : '';
       if (/^(cart|product_detail|product_buy|purchase_confirm|purchase_cancel|purchase_edit):/.test(callbackData) && botContext) {
@@ -861,7 +920,8 @@ class TelegramService {
     const isTopicService = Boolean(topicCreated || topicEdited);
     if ((!fromUser || fromUser.is_bot) && !isTopicService) return;
     const hasContact = Boolean(tgMessage.contact);
-    if (typeof tgMessage.text !== 'string' && !isTopicService && !hasContact) return;
+    const attachment = telegramMedia(tgMessage);
+    if (typeof tgMessage.text !== 'string' && !isTopicService && !hasContact && !attachment) return;
 
     const tgChatId = String(tgMessage.chat.id);
     const timestamp = new Date((tgMessage.date || Date.now() / 1000) * 1000).toISOString();
@@ -975,28 +1035,57 @@ class TelegramService {
       await this.sendMessage(destination.id, await this.getFlowPrompt(botContext.botId, linkPromptKeys[linkResult]), { replyMarkup: { remove_keyboard: true } });
       return;
     }
-    if (typeof tgMessage.text !== 'string') return;
+    if (typeof tgMessage.text !== 'string' && !attachment) return;
     const incomingMessage: Message = {
       id: `tg_${messageOwnerKey}_${tgChatId}_${tgMessage.message_id}`,
+      telegramMessageId: tgMessage.message_id,
       chatId: destination.id,
       senderId: user.id,
       senderName: [fromUser.first_name, fromUser.last_name].filter(Boolean).join(' '),
-      text: tgMessage.text,
-      type: 'text',
+      text: tgMessage.text || tgMessage.caption || attachment?.fileName || '',
+      type: attachment?.type || 'text',
+      ...(attachment ? { fileName: attachment.fileName, fileSize: String(attachment.fileSize || '') } : {}),
       isOutgoing: false,
       status: 'delivered',
       createdAt: timestamp,
     };
     if (await db.getMessageById(destination.id, incomingMessage.id)) return;
+    if (attachment) {
+      try {
+        const file = await this.apiCall<{ file_path?: string }>('getFile', { file_id: attachment.fileId }, undefined, botToken);
+        if (!file.file_path) throw new Error('Telegram file path unavailable');
+        const response = await fetch('https://api.telegram.org/file/bot' + botToken + '/' + file.file_path, { signal: AbortSignal.timeout(30000) });
+        if (!response.ok) throw new Error('Telegram file download failed');
+        const data = Buffer.from(await response.arrayBuffer());
+        const extension = path.extname(attachment.fileName) || path.extname(file.file_path);
+        const safeExtension = /^\.[a-zA-Z0-9]{1,10}$/.test(extension) ? extension.toLowerCase() : '';
+        const url = '/uploads/telegram_' + createHash('sha256').update(ownerKey + ':' + attachment.fileId).digest('hex') + safeExtension;
+        await storeUpload(url, data, attachment.mimeType);
+        incomingMessage.mediaUrl = url;
+        incomingMessage.fileSize = String(data.length);
+      } catch {
+        // Preserve the message and keep polling even if Telegram cannot supply the file.
+        incomingMessage.text += '\nKhông tải được tệp từ Telegram.';
+      }
+    }
     await db.addMessage(incomingMessage);
     socketService.broadcastNewMessage(destination.id, incomingMessage, destination, user);
     if (destination.parentChatId) socketService.broadcastChatStructureChanged(destination.parentChatId);
+    if (attachment) return;
     const command = tgMessage.text.trim().match(/^\/(start|cancel)(?:@\w+)?(?:\s|$)/i)?.[1]?.toLowerCase();
     if (botContext && command) {
       if (tgMessage.chat.type === 'private') {
         const managedBot = await db.getManagedBotById(botContext.botId);
         const telegramBotId = managedBot?.telegramBotId || managedBot?.username || botContext.botId;
         await bnkDataService.resetCustomerFlow(String(fromUser.id), tgChatId, telegramBotId);
+      }
+      const buyPayload=command==='start'?tgMessage.text.trim().match(/^\/start(?:@\w+)?\s+buy_([1-9][0-9]{0,14})$/i):null;
+      if(buyPayload&&tgMessage.chat.type==='private'){
+        await this.beginProductPurchase(destination,Number(buyPayload[1]),String(fromUser.id),tgChatId,{botId:botContext.botId,token:botToken});
+        return;
+      }
+      if(command==='start'&&/^\/start(?:@\w+)?\s+shop$/i.test(tgMessage.text.trim())&&tgMessage.chat.type==='private'){
+        await this.sendProductCards(destination,botToken);return;
       }
       if (command === 'cancel') {
         await this.sendMessage(destination.id, 'Đã hủy thao tác. Gửi /start để mở menu.', { replyMarkup: { remove_keyboard: true } });

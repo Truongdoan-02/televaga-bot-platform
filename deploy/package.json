@@ -1,0 +1,11 @@
+{
+  "name": "televaga-demo-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.cjs"
+  },
+  "dependencies": {
+    "http-proxy": "1.18.1"
+  }
+}

@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { storeUpload } from '../services/uploadStore.js';
 import { db } from '../database/connection.js';
 import { telegramService } from '../services/telegramService.js';
 
@@ -47,14 +46,7 @@ export const toggleReaction = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ success: false, error: 'Message not found' });
       return;
     }
-    const reactions = { ...(message.reactions || {}) };
-    const users = [...(reactions[emoji] || [])];
-    const userIndex = users.indexOf('user_agent_me');
-    if (userIndex >= 0) users.splice(userIndex, 1);
-    else users.push('user_agent_me');
-    if (users.length) reactions[emoji] = users;
-    else delete reactions[emoji];
-    const updated = await db.updateMessage(chatId, messageId, { reactions, isPinned: Boolean(message.isPinned) });
+    const updated = await telegramService.toggleMessageReaction(chatId, messageId, emoji);
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -125,7 +117,6 @@ export const forwardMessage = async (req: Request, res: Response): Promise<void>
 
 
 
-const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/uploads');
 
 export const uploadMessageMedia = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -160,8 +151,7 @@ export const uploadMessageMedia = async (req: Request, res: Response): Promise<v
     }
     const extension = path.extname(originalName);
     const storedName = randomUUID() + extension;
-    await mkdir(uploadsDirectory, { recursive: true });
-    await writeFile(path.join(uploadsDirectory, storedName), fileData);
+    await storeUpload('/uploads/' + storedName, fileData, mimeType);
 
     const mediaType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'document';
     const message = await telegramService.sendMedia(chatId, {

@@ -34,26 +34,26 @@ test('recipient isolation, deduplication, failed sends, scheduling, cancellation
       { id: 'topicDuplicate', botId: 'bot1', type: 'group', telegramChatId: '-4', messageThreadId: 12, parentChatId: 'group', title: 'Duplicate topic' },
       { id: 'channel', botId: 'bot1', type: 'channel', telegramChatId: '-5', title: 'Channel' },
     ] as any;
-    const service = new BroadcastService(storage, delivery, 0); service.initialize(false);
+    const service = new BroadcastService(storage, delivery, 0); await service.initialize(false);
     assert.deepEqual((await service.recipients('bot1', 'all')).map(r => r.chatId), ['one', 'two']);
     assert.deepEqual((await service.recipients('bot1', 'vip')).map(r => r.chatId), ['one']);
     assert.deepEqual((await service.recipients('bot1', 'everyone')).map(r => r.chatId), ['one', 'two', 'group', 'topic', 'channel']);
     assert.deepEqual((await service.recipients('bot1', 'groups')).map(r => r.chatId), ['group', 'topic', 'channel']);
     const draft = await service.create(input); await service.processQueue(); assert.equal(calls.length, 0);
-    service.action(draft.id, 'send'); await Promise.all([service.processQueue(), service.processQueue()]);
+    await service.action(draft.id, 'send'); await Promise.all([service.processQueue(), service.processQueue()]);
     assert.deepEqual(calls, ['one', 'two']); assert.equal(service.detail(draft.id).status, 'partial');
     assert.equal(service.list()[0].sent, 1); assert.equal(service.list()[0].failed, 1);
-    assert.throws(() => service.action(draft.id, 'send'));
+    await assert.rejects(() => service.action(draft.id, 'send'));
     const scheduled = await service.create({ ...input, scheduledAt: new Date(Date.now() + 60000).toISOString() });
     await service.processQueue(); assert.equal(calls.length, 2);
-    service.action(scheduled.id, 'cancel'); await service.processQueue(); assert.equal(calls.length, 2);
+    await service.action(scheduled.id, 'cancel'); await service.processQueue(); assert.equal(calls.length, 2);
     const due = await service.create({ ...input, audience: 'vip', scheduledAt: new Date(Date.now() + 60000).toISOString() });
     due.scheduledAt = new Date(Date.now() - 1000).toISOString();
     await service.processQueue(); assert.equal(calls.length, 3); assert.equal(service.detail(due.id).status, 'completed');
     const interrupted = await service.create(input, true);
     interrupted.status = 'sending'; interrupted.recipients[0].status = 'sending';
     fs.writeFileSync(storage, JSON.stringify({ items: [interrupted], maintenance: service.getMaintenance() }));
-    const restored = new BroadcastService(storage, delivery, 0); restored.initialize(false);
+    const restored = new BroadcastService(storage, delivery, 0); await restored.initialize(false);
     await restored.processQueue();
     assert.equal(restored.detail(interrupted.id).recipients[0].status, 'unknown');
     assert.deepEqual(calls, ['one', 'two', 'one', 'two']);
@@ -69,5 +69,31 @@ test('recipient isolation, deduplication, failed sends, scheduling, cancellation
   } finally {
     db.getChats = originalChats; db.getManagedBotById = originalBot;
     fs.rmSync(directory, { recursive: true });
+  }
+});
+
+test('durable storage restores history and maintenance without the local file or resending completed recipients', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vaga-durable-test-'));
+  let payload: string | null = null;
+  const storage = { load: async () => payload, save: async (value: string) => { payload = value; } };
+  const record = { ...input, id: 'saved', createdAt: new Date().toISOString(), status: 'completed', recipients: [{ chatId: 'one', name: 'One', status: 'sent' }] };
+  const maintenance = { enabled: true, message: 'Maintenance', notifyStart: false, notifyEnd: false };
+  fs.writeFileSync(path.join(directory, 'old.json'), JSON.stringify({ items: [record], maintenance }));
+  let calls = 0;
+  try {
+    const first = new BroadcastService(path.join(directory, 'old.json'), async () => { calls++; }, 0, storage);
+    await first.initialize(false);
+    assert.ok(payload, 'legacy history migrated into durable storage');
+    const restored = new BroadcastService(path.join(directory, 'missing.json'), async () => { calls++; }, 0, storage);
+    await restored.initialize(false);
+    assert.equal(restored.detail('saved').recipients[0].status, 'sent');
+    assert.equal(restored.getMaintenance().enabled, true);
+    await restored.processQueue();
+    assert.equal(calls, 0);
+    const broken = new BroadcastService(path.join(directory, 'missing.json'), async () => {}, 0, { load: async () => { throw new Error('Database unavailable'); }, save: async () => {} });
+    await assert.rejects(() => broken.initialize(false), /Database unavailable/);
+  } finally {
+    fs.unlinkSync(path.join(directory, 'old.json'));
+    fs.rmdirSync(directory);
   }
 });

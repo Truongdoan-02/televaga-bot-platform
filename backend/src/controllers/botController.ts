@@ -224,6 +224,7 @@ export const setManagedBotEnabled = async (req: Request, res: Response): Promise
       isEnabled: req.body.isEnabled,
       status: req.body.isEnabled ? 'connected' : (bot.telegramBotId ? 'disabled' : bot.status),
     });
+    await telegramService.syncManagedBots();
     res.json({ success: true, data: updated && toPublicBot(updated) });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

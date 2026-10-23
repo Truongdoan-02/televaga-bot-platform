@@ -1,5 +1,7 @@
 'use client';
 
+import { assetUrl } from '@/lib/assets';
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, FileText, Link as LinkIcon, Pencil, Phone, Plus, UsersRound, X } from 'lucide-react';
 import { Chat, Message, User } from '@/types';
@@ -15,12 +17,11 @@ interface UserInfoPanelProps {
 }
 
 type InfoTab = 'members' | 'media' | 'files' | 'links' | 'music' | 'gif' | 'voice';
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const AVATAR_COLORS = ['#4f81c7', '#43a89f', '#c05c7e', '#7c62b5', '#e07654', '#6ab04c'];
 const displayName = (user: User) => [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
 const initials = (title: string) => title.trim().split(/\s+/).map((word) => word[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
 const avatarColor = (name: string) => AVATAR_COLORS[Math.abs([...name].reduce((hash, char) => hash * 31 + char.charCodeAt(0), 0)) % AVATAR_COLORS.length];
-const mediaUrl = (url?: string) => !url ? '' : url.startsWith('http') ? url : API_BASE + url;
+const mediaUrl = (value?: string) => value ? assetUrl(value) : '';
 const fileExtension = (message: Message) => (message.fileName || message.mediaUrl || '').split('?')[0].split('.').pop()?.toLowerCase() || '';
 const linkPattern = /https?:\/\/[^\s]+/i;
 
@@ -140,7 +141,7 @@ export default function UserInfoPanel({ chat, messages, isOpen, onClose, onUpdat
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehaviorY: 'contain', paddingBottom: 16 }}>
         <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 18px 26px', textAlign: 'center' }}>
-          {chat.avatarUrl ? <img src={chat.avatarUrl} alt={displayTitle} style={{ width: 116, height: 116, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ display: 'grid', placeItems: 'center', width: 116, height: 116, borderRadius: '50%', background: avatarColor(displayTitle), color: '#fff', fontSize: 38, fontWeight: 700 }}>{isGroup ? <UsersRound size={46} /> : initials(displayTitle)}</div>}
+          {chat.avatarUrl ? <img src={assetUrl(chat.avatarUrl)} alt={displayTitle} style={{ width: 116, height: 116, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ display: 'grid', placeItems: 'center', width: 116, height: 116, borderRadius: '50%', background: avatarColor(displayTitle), color: '#fff', fontSize: 38, fontWeight: 700 }}>{isGroup ? <UsersRound size={46} /> : initials(displayTitle)}</div>}
           {editing ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', marginTop: 18 }}>
               <input autoFocus value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={80} style={{ minWidth: 0, flex: 1, height: 40, padding: '0 10px', border: '1px solid #444', borderRadius: 8, background: 'var(--tg-bg-tertiary, #1c2733)', color: '#fff', fontSize: 15 }} />
@@ -165,7 +166,7 @@ export default function UserInfoPanel({ chat, messages, isOpen, onClose, onUpdat
         {isGroup && tab === 'members' ? (
           <section style={{ position: 'relative', minHeight: 120, margin: '0 12px', padding: '8px 10px 60px', borderRadius: 24, background: 'var(--tg-bg-hover, #2b3a4e)' }}>
             {participants.map((member) => <button key={member.id} type="button" onClick={() => onOpenMemberChat(member)} title={'Mở cuộc trò chuyện với ' + displayName(member)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', minHeight: 67, padding: '0 4px', border: 0, borderRadius: 12, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
-              {member.avatarUrl ? <img src={member.avatarUrl} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ display: 'grid', placeItems: 'center', width: 48, height: 48, borderRadius: '50%', background: avatarColor(displayName(member)), color: '#fff', fontWeight: 700 }}>{initials(displayName(member))}</div>}
+              {member.avatarUrl ? <img src={assetUrl(member.avatarUrl)} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ display: 'grid', placeItems: 'center', width: 48, height: 48, borderRadius: '50%', background: avatarColor(displayName(member)), color: '#fff', fontWeight: 700 }}>{initials(displayName(member))}</div>}
               <div style={{ minWidth: 0 }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{displayName(member)}</strong><span style={{ display: 'block', marginTop: 3, color: member.isOnline ? '#a78bfa' : '#aaa', fontSize: 13 }}>{member.isOnline ? 'online' : 'last seen ' + (member.lastSeen || 'recently')}</span></div>
             </button>)}
             {isInternalGroup && <button onClick={() => void openAddMembers()} title="Add Members" style={{ position: 'absolute', right: 12, bottom: 12, display: 'grid', placeItems: 'center', width: 48, height: 48, border: 0, borderRadius: '50%', background: '#8b72e8', color: '#fff', cursor: 'pointer' }}><Plus size={24} /><UsersRound size={16} style={{ position: 'absolute', right: 8, bottom: 7 }} /></button>}

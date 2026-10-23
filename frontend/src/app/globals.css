@@ -784,11 +784,11 @@ body {
 }
 
 .bubble-with-image {
-  width: min-content;
+  width: min(384px, 65vw);
+  max-width: 100%;
 }
 
 .bubble-with-image .bubble-text {
-  contain: inline-size;
   overflow-wrap: anywhere;
 }
 
@@ -824,9 +824,17 @@ body {
 .message-hover-actions button:hover, .context-reaction-row button:hover { background: var(--tg-bg-hover); transform: scale(1.08); }
 .message-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0 8px; }
 .message-reactions.align-right { justify-content: flex-end; margin-left: 0; margin-right: 8px; }
-.message-reactions button { padding: 2px 7px; border-radius: 14px; border: 1px solid var(--tg-border); background: var(--tg-bg-secondary); color: var(--tg-text-primary); cursor: pointer; font-size: 12px; }
-.message-reactions button.active { border-color: var(--tg-accent); background: var(--tg-accent-light); }
-.message-reactions span { color: var(--tg-text-secondary); margin-left: 2px; }
+.message-reactions button { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 6px; border-radius: 16px; border: 0; background: #233e54; color: #fff; cursor: pointer; }
+.message-reactions button.active { background: #3390ec; }
+.message-reactions button:hover { filter: brightness(1.12); }
+.message-reactions button:focus-visible { outline: 2px solid var(--tg-accent); outline-offset: 2px; }
+.message-reactions .reaction-emoji { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 19px; line-height: 22px; }
+.reaction-avatars { display: inline-flex; align-items: center; padding-left: 3px; }
+.reaction-avatar { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -3px; border-radius: 50%; overflow: hidden; background: #647e96; box-shadow: 0 0 0 1.5px #233e54; flex-shrink: 0; }
+.active .reaction-avatar { box-shadow: 0 0 0 1.5px #3390ec; }
+.reaction-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.reaction-avatar > span { color: #fff; font-size: 11px; font-weight: 600; }
+.reaction-count { font-size: 13px; font-weight: 600; padding: 0 3px; }
 .reply-quote { display: flex; flex-direction: column; gap: 2px; border-left: 3px solid var(--tg-accent); background: rgba(82,136,193,.12); border-radius: 4px; padding: 4px 8px; margin-bottom: 6px; max-width: 100%; }
 .reply-quote strong { color: var(--tg-accent); font-size: 11px; }
 .reply-quote span { font-size: 12px; opacity: .8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -1703,3 +1711,34 @@ body {
   .sidebar.compact,
   .forum-topics-panel { animation-duration: 1ms !important; }
 }
+
+/* Keep the navigation row in place while its management panel expands below. */
+.section-switch.section-navigation { display: block; position: relative; z-index: 30; }
+.section-navigation-row { display: flex; align-items: center; gap: 5px; }
+.section-navigation-row > button > svg { flex-shrink: 0; }
+.section-navigation-row > button > span { overflow: hidden; text-overflow: ellipsis; }
+.section-switch .section-navigation-toggle { flex: 0 0 30px; padding: 0; }
+.section-navigation-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 4px 4px;
+  border: 1px solid var(--tg-border);
+  border-radius: 12px;
+  background: var(--tg-bg-tertiary);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .28);
+}
+.section-navigation-panel[hidden] { display: none; }
+.section-navigation-heading { display: block; padding: 0 8px 8px; color: var(--tg-text-muted); font-size: 11px; }
+.section-switch .section-navigation-panel button { width: 100%; height: auto; min-height: 54px; justify-content: flex-start; gap: 12px; padding: 10px; text-align: left; white-space: normal; }
+.section-navigation-panel button + button { margin-top: 4px; }
+.section-navigation-panel button > svg { flex-shrink: 0; }
+.section-navigation-panel button > span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.section-navigation-panel strong { font-size: 12px; font-weight: 600; }
+.section-navigation-panel small { color: var(--tg-text-muted); font-size: 11px; font-weight: 400; }
+.section-switch button:focus-visible { outline: 2px solid var(--tg-accent); outline-offset: -2px; }
+.section-switch button:hover { background: var(--tg-bg-active); }

@@ -1,18 +1,22 @@
 'use client';
 
+import { assetUrl } from '@/lib/assets';
+
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { AdminLogoutButton } from './AdminGate';
 import { Chat, ManagedBot } from '@/types';
+import SectionNavigation from './SectionNavigation';
 import { getMessageContent } from './MessageText';
-import { Bell, ArrowLeft, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
+import { Bell, ArrowLeft, ClipboardList, Warehouse, Truck, Package, Bot, Search, UsersRound, MessageSquare, Pin, VolumeX, Trash2, ChevronDown, Check, Hash, Megaphone, MoreVertical, Sparkles } from 'lucide-react';
 
 interface ChatListProps {
   chats: Chat[];
   managedBots: ManagedBot[];
   selectedBotId: string;
   onBotChange: (botId: string) => void;
-  activeSection: 'chats' | 'bots' | 'notifications';
-  onSectionChange: (section: 'chats' | 'bots' | 'notifications') => void;
+  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders';
+  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders') => void;
   activeChatId: string | null;
   category: string;
   searchQuery: string;
@@ -117,7 +121,7 @@ const ChatItem = React.memo(function ChatItem({ chat, isActive, onClick, onConte
         {chat.topicName ? (
           <div className="avatar-placeholder" style={{ background: '#46566b' }}>#</div>
         ) : chat.avatarUrl ? (
-          <img className="avatar-img" src={chat.avatarUrl} alt={chat.title} />
+          <img className="avatar-img" src={assetUrl(chat.avatarUrl)} alt={chat.title} />
         ) : (
           <div className="avatar-placeholder" style={{ background: color }}>
             {chat.type === 'group' ? '👥' : initials}
@@ -232,11 +236,7 @@ export default function ChatList({
 
   return (
     <aside className="sidebar">
-      <div className="section-switch" role="tablist" aria-label="Khu vực làm việc" style={{ display: 'flex', flexShrink: 0, gap: 5, margin: '10px 12px 0', padding: 4, border: '1px solid var(--tg-border)', borderRadius: 12, background: 'var(--tg-bg-tertiary)' }}>
-        <button type="button" role="tab" aria-selected={activeSection === 'bots'} className={activeSection === 'bots' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('bots'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'bots' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'bots' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bot size={16} /> Quản lý bot</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'chats'} className={activeSection === 'chats' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('chats'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'chats' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'chats' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><MessageSquare size={16} /> Chat</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'notifications'} className={activeSection === 'notifications' ? 'active' : ''} onClick={() => { setContextMenu(null); onSectionChange('notifications'); }} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'notifications' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'notifications' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bell size={16} /> Thông báo</button>
-      </div>
+      <SectionNavigation activeSection={activeSection} onSectionChange={(section) => { setContextMenu(null); onSectionChange(section); }} />
       {activeSection === 'chats' ? <>
       {/* Header */}
       <div className="sidebar-header">
@@ -275,7 +275,7 @@ export default function ChatList({
       {forumGroup ? <>
         <div className="sidebar-forum-heading" style={{ minHeight: 64, flex: '0 0 64px', display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px', borderBottom: '1px solid var(--tg-border)', boxSizing: 'border-box' }}>
           <div className="sidebar-forum-avatar" style={{ width: 38, height: 38, flex: '0 0 38px', overflow: 'hidden', display: 'grid', placeItems: 'center', borderRadius: '50%', background: 'var(--tg-bg-active)', fontSize: 19 }}>
-            {forumGroup.avatarUrl ? <img src={forumGroup.avatarUrl} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>👥</span>}
+            {forumGroup.avatarUrl ? <img src={assetUrl(forumGroup.avatarUrl)} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>👥</span>}
           </div>
           <button type="button" className="icon-btn" title="Quay lại danh sách hội thoại" onClick={onCloseTopics} style={{ width: 30, height: 30, flex: '0 0 30px' }}><ArrowLeft size={18} /></button>
           <div className="sidebar-forum-title" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}><strong style={{ overflow: 'hidden', fontSize: 14, fontWeight: 650, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{forumGroup.title}</strong><span style={{ color: 'var(--tg-text-muted)', fontSize: 11 }}>{forumTopics.length} topic</span></div>
@@ -312,7 +312,7 @@ export default function ChatList({
           chats.filter((chat) => !chat.parentChatId).map((chat) => renderChat(chat))
         )}
       </div>}
-      </> : <div className="bot-sidebar-hint">{activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
+      </> : <div className="bot-sidebar-hint">{activeSection === 'orders' ? <ClipboardList size={25} /> : activeSection === 'inventory' ? <Warehouse size={25} /> : activeSection === 'suppliers' ? <Truck size={25} /> : activeSection === 'products' ? <Package size={25} /> : activeSection === 'notifications' ? <Bell size={25} /> : <Bot size={25} />}<strong>{activeSection === 'orders' ? 'Quản lý đơn hàng' : activeSection === 'inventory' ? 'Quản lý tồn kho' : activeSection === 'suppliers' ? 'Nhà cung cấp' : activeSection === 'products' ? 'Quản lý sản phẩm' : activeSection === 'notifications' ? 'Thông báo' : 'Quản lý bot'}</strong><span>{activeSection === 'orders' ? 'Duyệt đơn và cập nhật trạng thái' : activeSection === 'inventory' ? 'Nhập, xuất, kiểm kê và lịch sử kho' : activeSection === 'suppliers' ? 'Đối tác, liên hệ và thông tin hợp tác' : activeSection === 'products' ? 'Danh mục, giá và tình trạng sản phẩm' : activeSection === 'notifications' ? 'Thông báo hệ thống' : 'Danh sách bot và cấu hình token'}</span></div>}
 
       {contextMenu && createPortal(
         <div onClick={() => setContextMenu(null)} onContextMenu={(event) => { event.preventDefault(); setContextMenu(null); }} style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
@@ -364,6 +364,7 @@ export default function ChatList({
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tg-text-primary)' }}>Demo_TeleVaga</div>
           <div style={{ fontSize: 10, color: 'var(--tg-text-muted)' }}>AI-Powered</div>
         </div>
+        <AdminLogoutButton />
       </div>
     </aside>
   );

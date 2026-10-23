@@ -23,8 +23,8 @@ router.get('/:id', (req, res) => {
   try { res.json({ success: true, data: broadcastService.detail(String(req.params.id)) }); }
   catch (error: any) { res.status(404).json({ success: false, error: error.message }); }
 });
-router.post('/:id/action', (req, res) => {
-  try { res.json({ success: true, data: broadcastService.action(String(req.params.id), req.body.action) }); }
+router.post('/:id/action', async (req, res) => {
+  try { res.json({ success: true, data: await broadcastService.action(String(req.params.id), req.body.action) }); }
   catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 });
 export default router;

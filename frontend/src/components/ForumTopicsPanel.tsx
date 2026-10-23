@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Bell, Bot, Check, ChevronDown, Hash, MessageSquare, Plus, Search, UsersRound, X } from 'lucide-react';
+import { Bot, Check, ChevronDown, Hash, MessageSquare, Plus, Search, UsersRound, X } from 'lucide-react';
 import { Chat, ManagedBot } from '@/types';
+import SectionNavigation from './SectionNavigation';
 
 interface ForumTopicsPanelProps {
   group: Chat;
@@ -15,8 +16,8 @@ interface ForumTopicsPanelProps {
   managedBots: ManagedBot[];
   selectedBotId: string;
   onBotChange: (botId: string) => void;
-  activeSection: 'chats' | 'bots' | 'notifications';
-  onSectionChange: (section: 'chats' | 'bots' | 'notifications') => void;
+  activeSection: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders';
+  onSectionChange: (section: 'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders') => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onCreateGroup: () => void;
@@ -55,11 +56,7 @@ export default function ForumTopicsPanel({
   ];
   return (
     <aside className="forum-topics-panel" aria-label={`Topic trong ${group.title}`} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--tg-bg-secondary)', borderLeft: '1px solid var(--tg-border)', color: 'var(--tg-text-primary)' }}>
-      <div className="section-switch" role="tablist" aria-label="Khu vực làm việc" style={{ display: 'flex', flexShrink: 0, gap: 5, margin: '10px 12px 0', padding: 4, border: '1px solid var(--tg-border)', borderRadius: 12, background: 'var(--tg-bg-tertiary)' }}>
-        <button type="button" role="tab" aria-selected={activeSection === 'bots'} onClick={() => onSectionChange('bots')} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'bots' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'bots' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bot size={16} /> Quản lý bot</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'chats'} onClick={() => onSectionChange('chats')} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'chats' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'chats' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><MessageSquare size={16} /> Chat</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'notifications'} onClick={() => onSectionChange('notifications')} style={{ display: 'flex', flex: 1, minWidth: 0, height: 34, alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0 8px', border: 0, borderRadius: 9, background: activeSection === 'notifications' ? 'var(--tg-bg-active)' : 'transparent', color: activeSection === 'notifications' ? '#a9c9f0' : 'var(--tg-text-secondary)', font: 'inherit', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' }}><Bell size={16} /> Thông báo</button>
-      </div>
+      <SectionNavigation activeSection={activeSection} onSectionChange={onSectionChange} />
       <div className="sidebar-header" style={{ minHeight: 60, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <label className="search-bar" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, height: 38, padding: '0 12px', border: '1px solid var(--tg-border)', borderRadius: 22, background: 'var(--tg-bg-tertiary)' }}>
           <Search size={15} style={{ color: 'var(--tg-text-muted)', flexShrink: 0 }} />

@@ -4,13 +4,19 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Message } from '@/types';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 let globalSocket: Socket | null = null;
+
+export function disconnectAdminSocket() {
+  globalSocket?.disconnect();
+  globalSocket = null;
+}
 
 function getSocket(): Socket {
   if (!globalSocket || !globalSocket.connected) {
     globalSocket = io(BACKEND_URL, {
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -21,6 +27,7 @@ function getSocket(): Socket {
 
 interface UseSocketOptions {
   activeChatId?: string | null;
+  onMessageUpdated?: (message: Message) => void;
   onNewMessage?: (message: Message) => void;
   onChatActivity?: (data: { chatId: string; lastMessage: Message; timestamp: string }) => void;
   onUserTyping?: (data: { chatId: string; userId: string; isTyping: boolean }) => void;
@@ -31,6 +38,7 @@ interface UseSocketOptions {
 export function useSocket({
   activeChatId,
   onNewMessage,
+  onMessageUpdated,
   onChatActivity,
   onUserTyping,
   onChatMarkedRead,
@@ -57,6 +65,8 @@ export function useSocket({
     };
     const handleChatStructureChanged = (data: { parentChatId: string }) => onChatStructureChanged?.(data);
 
+    const handleUpdated = (message: Message) => onMessageUpdated?.(message);
+    socket.on('message_updated', handleUpdated);
     socket.on('new_message', handleNewMessage);
     socket.on('chat_activity', handleChatActivity);
     socket.on('user_typing', handleTyping);
@@ -64,13 +74,14 @@ export function useSocket({
     socket.on('chat_structure_changed', handleChatStructureChanged);
 
     return () => {
+      socket.off('message_updated', handleUpdated);
       socket.off('new_message', handleNewMessage);
       socket.off('chat_activity', handleChatActivity);
       socket.off('user_typing', handleTyping);
       socket.off('chat_marked_read', handleChatRead);
       socket.off('chat_structure_changed', handleChatStructureChanged);
     };
-  }, [onNewMessage, onChatActivity, onUserTyping, onChatMarkedRead, onChatStructureChanged]);
+  }, [onMessageUpdated, onNewMessage, onChatActivity, onUserTyping, onChatMarkedRead, onChatStructureChanged]);
 
   // Join/leave chat rooms
   useEffect(() => {

@@ -1,14 +1,17 @@
 'use client';
 
+import { assetUrl } from '@/lib/assets';
+
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import {
   Send, CheckCheck, Check, Clock, Users, MoreVertical, Reply, Copy, Pin, Search, X, ChevronLeft, ChevronUp, ChevronDown, CalendarDays,
-  Forward, CheckCircle2, Trash2, Smile, CheckSquare, Square, List, Paperclip, Image as ImageIcon, File as FileIcon,
+  Forward, CheckCircle2, Download, Trash2, Smile, CheckSquare, Square, List, Paperclip, Image as ImageIcon, File as FileIcon,
 } from 'lucide-react';
 import { Chat, Message } from '@/types';
 import MessageText from './MessageText';
+import MessageMedia from './MessageMedia';
+import MessageReactions from './MessageReactions';
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 const REACTIONS = ['❤️', '👍', '👎', '🔥', '🥰', '👏', '😁'];
 const CHAT_EMOJIS = ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','😇','🙂','🙃','😉','😍','🥰','😘','😋','😛','🤗','🤔','🤨','😐','🙄','😏','😴','🥳','😭','😤','😡','🤯','😎','🤓','🥺','😱','🤝','🙏','👏','🙌','👍','👎','👌','✌️','🤞','💪','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💕','💞','💯','🔥','✨','🎉','🎂','🌹','🌸','☀️','🌙','⭐','⚡','☕','🍰','🍕','🍻','✅','❌','💡','💬','📌','🎁','🚀','🐱','🐶','🌈'];
@@ -324,7 +327,7 @@ export default function ChatWindow({
     const rect = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : null;
     const x = 'clientX' in event && event.clientX ? event.clientX : (rect?.right || 420);
     const y = 'clientY' in event && event.clientY ? event.clientY : (rect?.bottom || 240);
-    setMenu({ message, x: Math.min(x, window.innerWidth - 245), y: Math.min(y, window.innerHeight - 350) });
+    setMenu({ message, x: Math.min(x, window.innerWidth - 245), y: Math.min(y, window.innerHeight - (message.mediaUrl ? 400 : 350)) });
   };
 
   const toggleSelected = (id: string) => {
@@ -337,6 +340,25 @@ export default function ChatWindow({
       await navigator.clipboard.writeText(text);
       setActionError('Đã sao chép nội dung tin nhắn');
       window.setTimeout(() => setActionError(''), 2200);
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const downloadMedia = async (message: Message) => {
+    setMenu(null);
+    if (!message.mediaUrl) return;
+    try {
+      const response = await fetch(assetUrl(message.mediaUrl));
+      if (!response.ok) throw new Error('Không tải được tệp. Vui lòng thử lại.');
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = message.fileName || message.mediaUrl.split(/[?#]/)[0].split('/').pop() || 'download';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (error) {
       showError(error);
     }
@@ -469,7 +491,7 @@ export default function ChatWindow({
       <div className="chat-window-header" style={{ position: 'relative' }}>
         {onBackToChats && <button type="button" className="mobile-chat-back" onClick={onBackToChats} aria-label="Quay lại danh sách hội thoại" title="Quay lại"><ChevronLeft size={22} /></button>}
         <div style={{ cursor: 'pointer', flexShrink: 0 }} onClick={onOpenUserInfo}>
-          {chat.avatarUrl ? <img src={chat.avatarUrl} alt={chat.title} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} /> :
+          {chat.avatarUrl ? <img src={assetUrl(chat.avatarUrl)} alt={chat.title} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} /> :
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>{chat.type === 'group' ? '👥' : initials}</div>}
         </div>
         <div className="chat-header-info" style={{ cursor: 'pointer' }} onClick={onOpenUserInfo}>
@@ -493,7 +515,7 @@ export default function ChatWindow({
               <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 8px 8px' }}>
                 {searchMatches.length ? searchMatches.map((message, index) => (
                   <button key={message.id} onClick={() => goToSearchResult(index)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '9px 10px', border: 0, borderRadius: 13, background: index === activeSearchIndex ? '#303030' : 'transparent', color: '#f1f1f1', textAlign: 'left', cursor: 'pointer' }}>
-                    {chat.avatarUrl ? <img src={chat.avatarUrl} alt="" style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 50, height: 50, borderRadius: '50%', background: color, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, flexShrink: 0 }}>{initials}</div>}
+                    {chat.avatarUrl ? <img src={assetUrl(chat.avatarUrl)} alt="" style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 50, height: 50, borderRadius: '50%', background: color, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, flexShrink: 0 }}>{initials}</div>}
                     <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 14, fontWeight: 650 }}><span>{message.senderName || chat.title}</span><span style={{ color: '#888', fontSize: 12, fontWeight: 400 }}>{formatMsgTime(message.createdAt)}</span></span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: '#ddd' }}>{highlightSearchText(message.text)}</span>
@@ -554,7 +576,7 @@ export default function ChatWindow({
                         onContextMenu={(event) => openMenu(event, message)}>
                         {!group.isOutgoing && mi === group.messages.length - 1 && (
                           <button type="button" className="message-avatar" onClick={() => chat.type === 'group' && onOpenSenderChat(group.senderId)} aria-label={'Mở chat với ' + (group.senderName || 'thành viên')} title={chat.type === 'group' ? 'Nhắn tin riêng' : undefined} style={{ display: 'grid', placeItems: 'center', padding: 0, border: 0, borderRadius: '50%', background: 'transparent', cursor: chat.type === 'group' ? 'pointer' : 'default' }}>
-                            {senderAvatarUrl ? <img src={senderAvatarUrl} alt="" /> : <div style={{ background: senderColor }}>{senderInitials}</div>}
+                            {senderAvatarUrl ? <img src={assetUrl(senderAvatarUrl)} alt="" /> : <div style={{ background: senderColor }}>{senderInitials}</div>}
                           </button>
                         )}
                         {!group.isOutgoing && mi < group.messages.length - 1 && <div className="message-avatar-spacer" />}
@@ -569,19 +591,11 @@ export default function ChatWindow({
                             {message.isPinned && <div className="message-pin-label"><Pin size={12} /> Đã ghim</div>}
                             {message.forwardedFrom && <div className="message-forwarded-label"><Forward size={12} /> Đã chuyển tiếp từ {message.forwardedFrom}</div>}
                             {reply && <div className="reply-quote"><strong>{reply.senderName || (reply.isOutgoing ? 'Bạn' : chat.title)}</strong><span>{reply.text}</span></div>}
-                            {message.mediaUrl && message.type === 'image' && <img src={message.mediaUrl.startsWith('http') ? message.mediaUrl : BACKEND_BASE_URL + message.mediaUrl} alt={message.fileName || 'Ảnh'} style={{ display: 'block', maxWidth: 'min(360px, 65vw)', maxHeight: 360, borderRadius: 10, objectFit: 'contain', marginBottom: 5 }} />}
-                            {message.mediaUrl && message.type === 'video' && <video src={message.mediaUrl.startsWith('http') ? message.mediaUrl : BACKEND_BASE_URL + message.mediaUrl} controls preload="metadata" style={{ display: 'block', width: 'min(360px, 65vw)', maxHeight: 360, borderRadius: 10, marginBottom: 5 }} />}
-                            {message.mediaUrl && message.type === 'document' && <a href={message.mediaUrl.startsWith('http') ? message.mediaUrl : BACKEND_BASE_URL + message.mediaUrl} download={message.fileName || true} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 190, maxWidth: 320, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,.16)', color: 'inherit', textDecoration: 'none' }}><FileIcon size={22} /><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{message.fileName || message.text}</span></a>}
+                            {message.mediaUrl && <MessageMedia key={message.mediaUrl} message={message} selectionMode={selectionMode} />}
                             {(!message.mediaUrl || message.text !== message.fileName) && <div className="bubble-text"><MessageText message={message} /></div>}
                             <div className="bubble-meta"><span className="bubble-time">{formatMsgTime(message.createdAt)}</span>{group.isOutgoing && <span className="bubble-status"><StatusIcon status={message.status} /></span>}</div>
                           </div>
-                          {Object.entries(message.reactions || {}).filter(([, users]) => users.length > 0).length > 0 && (
-                            <div className={'message-reactions' + (group.isOutgoing ? ' align-right' : '')}>
-                              {Object.entries(message.reactions || {}).filter(([, users]) => users.length > 0).map(([emoji, users]) => (
-                                <button key={emoji} className={users.includes('user_agent_me') ? 'active' : ''} onClick={() => onReactMessage(message.id, emoji).catch(showError)}>{emoji} <span>{users.length}</span></button>
-                              ))}
-                            </div>
-                          )}
+                          <MessageReactions message={message} chat={chat} onReact={(id, emoji) => onReactMessage(id, emoji).catch(showError)} />
                         </div>
                       </div>
                     );
@@ -597,6 +611,7 @@ export default function ChatWindow({
             <div className="message-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}>
               <div className="context-reaction-row">{REACTIONS.slice(0, 6).map((emoji) => <button key={emoji} onClick={() => { setMenu(null); onReactMessage(menu.message.id, emoji).catch(showError); }}>{emoji}</button>)}</div>
               <button onClick={() => void handleAction('reply', menu.message)}><Reply size={17} /> Trả lời</button>
+              {menu.message.mediaUrl && <button onClick={() => void downloadMedia(menu.message)}><Download size={17} /> Tải xuống</button>}
               <button onClick={() => void handleAction('copy', menu.message)}><Copy size={17} /> Sao chép</button>
               <button onClick={() => void handleAction('pin', menu.message)}><Pin size={17} /> {menu.message.isPinned ? 'Bỏ ghim' : 'Ghim'}</button>
               <button onClick={() => void handleAction('forward', menu.message)}><Forward size={17} /> Chuyển tiếp</button>

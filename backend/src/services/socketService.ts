@@ -51,6 +51,10 @@ class SocketService {
     });
   }
 
+  broadcastMessageUpdated(message: Message) {
+    this.io?.to(`chat_${message.chatId}`).emit('message_updated', message);
+  }
+
   broadcastTyping(chatId: string, userId: string, isTyping: boolean) {
     if (!this.io) return;
     this.io.to(`chat_${chatId}`).emit('user_typing', {

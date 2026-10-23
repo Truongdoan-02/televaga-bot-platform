@@ -7,6 +7,10 @@ import ChatWindow from '@/components/ChatWindow';
 import UserInfoPanel from '@/components/UserInfoPanel';
 import BotManagement from '@/components/BotManagement';
 import Notifications from '@/components/Notifications';
+import ProductManagement from '@/components/ProductManagement';
+import SupplierManagement from '@/components/SupplierManagement';
+import InventoryManagement from '@/components/InventoryManagement';
+import OrderManagement from '@/components/OrderManagement';
 import { useSocket } from '@/hooks/useSocket';
 import {
   fetchChats,
@@ -29,7 +33,7 @@ import {
 import { Chat, ManagedBot, Message, User } from '@/types';
 
 export default function HomePage() {
-  const [activeSection, setActiveSection] = useState<'chats' | 'bots' | 'notifications'>('chats');
+  const [activeSection, setActiveSection] = useState<'chats' | 'bots' | 'notifications' | 'products' | 'suppliers' | 'inventory' | 'orders'>('chats');
   const [chats, setChats] = useState<Chat[]>([]);
   const [managedBots, setManagedBots] = useState<ManagedBot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState('');
@@ -374,6 +378,9 @@ export default function HomePage() {
   useSocket({
     activeChatId,
     onNewMessage: handleNewMessage,
+    onMessageUpdated: useCallback((message: Message) => {
+      setMessages(prev => prev.map(item => item.id === message.id && item.chatId === message.chatId ? message : item));
+    }, []),
     onChatActivity: handleChatActivity,
     onUserTyping: handleUserTyping,
     onChatMarkedRead: handleChatMarkedRead,
@@ -415,7 +422,7 @@ export default function HomePage() {
         onCreateTopic={(chatId) => void handleCreateTopic(chatId)}
       />
 
-      {activeSection === 'bots' ? <BotManagement /> : activeSection === 'notifications' ? <Notifications /> : <>
+      {activeSection === 'orders' ? <OrderManagement /> : activeSection === 'inventory' ? <InventoryManagement /> : activeSection === 'suppliers' ? <SupplierManagement /> : activeSection === 'products' ? <ProductManagement /> : activeSection === 'bots' ? <BotManagement /> : activeSection === 'notifications' ? <Notifications /> : <>
       {showCreateGroup && <CreateGroupDialog onClose={() => setShowCreateGroup(false)} onCreated={(chat) => void handleGroupCreated(chat)} />}
 
       <ChatWindow

@@ -53,6 +53,17 @@ class DatabaseService {
     suggestions: [],
   };
 
+  async loadBroadcastState(): Promise<string | null> {
+    if (!this.isUsingMySQL || !this.pool) throw new Error('MySQL is required for broadcast storage.');
+    const [rows] = await this.pool.query<mysql.RowDataPacket[]>('SELECT payload FROM broadcast_state WHERE id = 1');
+    return rows[0]?.payload ?? null;
+  }
+
+  async saveBroadcastState(payload: string): Promise<void> {
+    if (!this.isUsingMySQL || !this.pool) throw new Error('MySQL is required for broadcast storage.');
+    await this.pool.query('INSERT INTO broadcast_state (id, payload) VALUES (1, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)', [payload]);
+  }
+
   async initialize(): Promise<void> {
     console.log('[Database] Initializing database service...');
 
@@ -62,16 +73,19 @@ class DatabaseService {
         console.log(`[Database] Attempting connection to MySQL (${config.database.host}:${config.database.port})...`);
         
         // Connect to server to verify / create DB
-        const rootConn = await mysql.createConnection({
-          host: config.database.host,
-          port: config.database.port,
-          user: config.database.user,
-          password: config.database.password,
-          connectTimeout: 3000,
-        });
+        if (process.env.DB_AUTO_CREATE !== 'false') {
+          const rootConn = await mysql.createConnection({
+            host: config.database.host,
+            port: config.database.port,
+            user: config.database.user,
+            password: config.database.password,
+            connectTimeout: 3000,
+            ssl: config.database.ssl,
+          });
 
-        await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-        await rootConn.end();
+          await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+          await rootConn.end();
+        }
 
         this.pool = mysql.createPool({
           host: config.database.host,
@@ -79,6 +93,7 @@ class DatabaseService {
           user: config.database.user,
           password: config.database.password,
           database: config.database.database,
+          ssl: config.database.ssl,
           waitForConnections: true,
           connectionLimit: 10,
           queueLimit: 0,
@@ -92,8 +107,11 @@ class DatabaseService {
         return;
       }
     } catch (err: any) {
+      if (process.env.DB_REQUIRED === 'true') throw err;
       console.warn(`[Database]  MySQL connection unavailable (${err.message}).`);
     }
+
+    if (process.env.DB_REQUIRED === 'true') throw new Error('MySQL is required for this deployment.');
 
     // Fallback to local persistent JSON DB
     console.log('[Database] ℹ  Falling back to persistent Local JSON Database.');
@@ -103,6 +121,17 @@ class DatabaseService {
   private async initMySQLTables() {
     if (!this.pool) return;
     const queries = [
+      `CREATE TABLE IF NOT EXISTS broadcast_state (
+        id TINYINT PRIMARY KEY, payload LONGTEXT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS upload_assets (
+        asset_key CHAR(64) PRIMARY KEY, upload_path VARCHAR(512) NOT NULL UNIQUE,
+        mime_type VARCHAR(127) NOT NULL, byte_size INT UNSIGNED NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS upload_asset_chunks (
+        asset_key CHAR(64) NOT NULL, part_index INT UNSIGNED NOT NULL, content MEDIUMBLOB NOT NULL,
+        PRIMARY KEY (asset_key, part_index)
+      )`,
       `CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(64) PRIMARY KEY,
         telegram_id VARCHAR(64) UNIQUE,
@@ -186,6 +215,7 @@ class DatabaseService {
     const messageColumns = [
       ['entities', 'JSON NULL'],
       ['reactions', 'JSON NULL'],
+      ['telegram_message_id', 'BIGINT NULL'],
       ['is_pinned', 'BOOLEAN NOT NULL DEFAULT FALSE'],
       ['forwarded_from', 'VARCHAR(150) NULL'],
     ] as const;
@@ -750,6 +780,7 @@ class DatabaseService {
         isOutgoing: Boolean(r.is_outgoing),
         status: r.status,
         replyToId: r.reply_to_id,
+        telegramMessageId: r.telegram_message_id == null ? undefined : Number(r.telegram_message_id),
         reactions: typeof r.reactions === 'string' ? JSON.parse(r.reactions) : (r.reactions || {}),
         isPinned: Boolean(r.is_pinned),
         forwardedFrom: r.forwarded_from || undefined,
@@ -764,9 +795,9 @@ class DatabaseService {
   async addMessage(msg: Message): Promise<Message> {
     if (this.isUsingMySQL && this.pool) {
       await this.pool.query(
-        `INSERT INTO messages (id, chat_id, sender_id, sender_name, text, type, media_url, file_name, file_size, is_outgoing, status, reply_to_id, reactions, is_pinned, forwarded_from, created_at, entities)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [msg.id, msg.chatId, msg.senderId, msg.senderName || null, msg.text, msg.type, msg.mediaUrl || null, msg.fileName || null, msg.fileSize || null, msg.isOutgoing, msg.status, msg.replyToId || null, JSON.stringify(msg.reactions || {}), Boolean(msg.isPinned), msg.forwardedFrom || null, msg.createdAt, JSON.stringify(msg.entities || [])]
+        `INSERT INTO messages (id, chat_id, sender_id, sender_name, text, type, media_url, file_name, file_size, is_outgoing, status, reply_to_id, reactions, is_pinned, forwarded_from, created_at, entities, telegram_message_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [msg.id, msg.chatId, msg.senderId, msg.senderName || null, msg.text, msg.type, msg.mediaUrl || null, msg.fileName || null, msg.fileSize || null, msg.isOutgoing, msg.status, msg.replyToId || null, JSON.stringify(msg.reactions || {}), Boolean(msg.isPinned), msg.forwardedFrom || null, msg.createdAt, JSON.stringify(msg.entities || []), msg.telegramMessageId || null]
       );
       // Update chat's updated_at and unread_count
       const unreadIncrement = msg.isOutgoing ? 0 : 1;
@@ -969,6 +1000,33 @@ class DatabaseService {
 
   async getAISuggestions(chatId: string): Promise<AISuggestion[] | null> {
     return this.localStore.suggestions.find((s) => s.chatId === chatId)?.suggestions || null;
+  }
+
+  async saveUploadAsset(uploadPath: string, data: Buffer, mimeType: string): Promise<void> {
+    if (!this.isUsingMySQL || !this.pool) return;
+    const key = createHash('sha256').update(uploadPath).digest('hex');
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query('INSERT INTO upload_assets (asset_key, upload_path, mime_type, byte_size) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type), byte_size=VALUES(byte_size)', [key, uploadPath, mimeType, data.length]);
+      await connection.query('DELETE FROM upload_asset_chunks WHERE asset_key = ?', [key]);
+      for (let offset = 0, part = 0; offset < data.length; offset += 1024 * 1024, part++) {
+        await connection.query('INSERT INTO upload_asset_chunks (asset_key, part_index, content) VALUES (?, ?, ?)', [key, part, data.subarray(offset, offset + 1024 * 1024)]);
+      }
+      await connection.commit();
+    } catch (error) { await connection.rollback(); throw error; }
+    finally { connection.release(); }
+  }
+
+  async getUploadAsset(uploadPath: string): Promise<{ data: Buffer; mimeType: string } | null> {
+    if (!this.isUsingMySQL || !this.pool) return null;
+    const key = createHash('sha256').update(uploadPath).digest('hex');
+    const [assets]: any = await this.pool.query('SELECT mime_type, byte_size FROM upload_assets WHERE asset_key = ?', [key]);
+    if (!assets.length) return null;
+    const [parts]: any = await this.pool.query('SELECT content FROM upload_asset_chunks WHERE asset_key = ? ORDER BY part_index', [key]);
+    const data = Buffer.concat(parts.map((part: any) => part.content));
+    if (data.length !== Number(assets[0].byte_size)) throw new Error('Stored upload is incomplete');
+    return { data, mimeType: assets[0].mime_type };
   }
 
   isMySQLActive(): boolean {

@@ -1,9 +1,11 @@
 import { Chat, Message, User, ManagedBot, BotActionButton, AISummary, AISuggestion } from '@/types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+import { authenticatedFetch } from './auth';
+
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 export const broadcastImageSrc = (imageUrl: string) => imageUrl.startsWith('/uploads/') ? `${BASE_URL}${imageUrl}` : imageUrl;
 export const uploadBroadcastImage = async (file: File): Promise<{ imageUrl: string }> => {
-  const response = await fetch(`${BASE_URL}/api/broadcasts/images`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+  const response = await authenticatedFetch(`${BASE_URL}/api/broadcasts/images`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
   if (response.status === 413) throw new Error('Ảnh tối đa 10 MB.');
   const result = await response.json();
   if (!result.success) throw new Error(result.error || 'Không tải được ảnh.');
@@ -29,7 +31,7 @@ export const broadcastAction = (id: string, action: string) => apiFetch<Broadcas
 export const updateMaintenance = (settings: MaintenanceSettings, botId: string) => apiFetch<MaintenanceSettings>('/api/broadcasts/maintenance', { method: 'PUT', body: JSON.stringify({ ...settings, botId }) });
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await authenticatedFetch(`${BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -108,7 +110,7 @@ export const fetchMessages = (chatId: string): Promise<Message[]> =>
   apiFetch<Message[]>(`/api/chats/${chatId}/messages`);
 
 export const uploadChatMedia = async (chatId: string, file: File, caption = ''): Promise<Message> => {
-  const response = await fetch(`${BASE_URL}/api/chats/${chatId}/messages/media`, {
+  const response = await authenticatedFetch(`${BASE_URL}/api/chats/${chatId}/messages/media`, {
     method: 'POST',
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name), 'X-Message-Caption': encodeURIComponent(caption) },
     body: file,
@@ -160,3 +162,62 @@ export const chatWithAI = (query: string, chatId?: string): Promise<{ reply: str
     method: 'POST',
     body: JSON.stringify({ query, chatId }),
   });
+
+export type ProductStatus = 'in_stock' | 'out_of_stock' | 'discontinued';
+export interface ProductInput {
+  code: string; name: string; quantity: string; price: number; supplier: string; supplierCode: string;
+  status: ProductStatus; description: string; imageUrl: string;
+}
+export interface Product extends ProductInput { id: string }
+export const fetchProducts = () => apiFetch<Product[]>('/api/products');
+export const fetchProduct = (id: string) => apiFetch<Product>(`/api/products/${encodeURIComponent(id)}`);
+export const createProduct = (input: ProductInput) => apiFetch<Product>('/api/products', { method: 'POST', body: JSON.stringify(input) });
+export const updateProduct = (id: string, input: ProductInput) => apiFetch<Product>(`/api/products/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
+export const deleteProduct = (id: string) => apiFetch<null>(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export interface SupplierInput {
+  name: string; contactName: string; phone: string; email: string; address: string;
+  taxCode: string; bankAccount: string; bankName: string; status: 0 | 1; note: string;
+}
+export interface Supplier extends SupplierInput { code: string; createdAt: string; updatedAt: string; productPrefix: string }
+export const fetchSuppliers = () => apiFetch<Supplier[]>('/api/suppliers');
+export const fetchSupplier = (code: string) => apiFetch<Supplier>('/api/suppliers/' + encodeURIComponent(code));
+export const createSupplier = (input: SupplierInput) => apiFetch<Supplier>('/api/suppliers', { method: 'POST', body: JSON.stringify(input) });
+export const updateSupplier = (code: string, input: SupplierInput) => apiFetch<Supplier>('/api/suppliers/' + encodeURIComponent(code), { method: 'PUT', body: JSON.stringify(input) });
+export const deleteSupplier = (code: string) => apiFetch<null>('/api/suppliers/' + encodeURIComponent(code), { method: 'DELETE' });
+export const fetchNextSupplierCode = () => apiFetch<{ code: string }>('/api/suppliers/next-code');
+
+export const fetchNextProductCode = (supplierCode: string) => apiFetch<{ code: string }>('/api/products/next-code?' + new URLSearchParams({ supplierCode }));
+
+export const productImageSrc = (imageUrl: string) => imageUrl.startsWith('/uploads/') ? BASE_URL + imageUrl : imageUrl;
+export const uploadProductImage = async (file: File): Promise<{ imageUrl: string }> => {
+  const response = await authenticatedFetch(BASE_URL + '/api/products/images', {
+    method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+  });
+  if (response.status === 413) throw new Error('Ảnh tối đa 10 MB.');
+  const result = await response.json();
+  if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được ảnh.');
+  return result.data;
+};
+export interface InventoryItem { salePrice: number; productId: string; code: string; name: string; imageUrl: string; quantity: string; supplier: string; unit: string; onHand: number; reserved: number; available: number; minimumQuantity: number }
+export interface InventoryTransaction { id: number; code: string; product_id: string; product_code: string; product_name: string; type: string; quantity_change: number; reserved_change: number; quantity_before: number; quantity_after: number; reserved_before: number; reserved_after: number; unit_cost: number|null; note: string; created_by: string; created_at: string; order_id: number|null; document_id: string|null; document_code: string|null }
+export interface InventoryOrder { order_id: number; order_code: string; state: string; products: string; updated_at: string }
+export interface InventoryInput { productId: string; type: 'receipt'|'issue'|'count'|'return'; quantity: number; note: string; reference: string; unitCost: number|null }
+export const fetchInventory = () => apiFetch<InventoryItem[]>('/api/inventory');
+export const fetchInventoryHistory = (productId='') => apiFetch<InventoryTransaction[]>('/api/inventory/history'+(productId?'?'+new URLSearchParams({productId}):''));
+export const fetchInventoryOrders = () => apiFetch<InventoryOrder[]>('/api/inventory/orders');
+export const createInventoryTransaction = (input:InventoryInput) => apiFetch<{code:string}>('/api/inventory/transactions',{method:'POST',body:JSON.stringify(input)});
+export const updateInventorySettings = (id:string,unit:string,minimumQuantity:number) => apiFetch<null>('/api/inventory/'+encodeURIComponent(id)+'/settings',{method:'PUT',body:JSON.stringify({unit,minimumQuantity})});
+export const inventoryOrderAction = (id:number,action:string) => apiFetch<null>('/api/inventory/orders/'+id+'/action',{method:'POST',body:JSON.stringify({action})});
+export type InventoryDocumentType = InventoryInput['type']|'settings';
+export interface InventoryDocumentInput { type:InventoryDocumentType;note:string;reference:string;items:{productId:string;quantity?:number;unitCost?:number|null;unit?:string;minimumQuantity?:number}[] }
+export interface InventoryDocument { id:string;code:string;type:InventoryDocumentType;note:string;created_by:string;created_at:string;item_count:number }
+export interface InventoryDocumentLine { product_id:string;product_code:string;product_name:string;quantity:number|null;unit_cost:number|null;quantity_before:number;quantity_after:number;reserved_before:number;reserved_after:number;unit_before:string;unit_after:string;minimum_before:number;minimum_after:number }
+export interface InventoryDocumentDetail extends InventoryDocument { items:InventoryDocumentLine[] }
+export const fetchInventoryDocuments = () => apiFetch<InventoryDocument[]>('/api/inventory/documents');
+export const fetchInventoryDocument = (id:string) => apiFetch<InventoryDocumentDetail>('/api/inventory/documents/'+encodeURIComponent(id));
+export const createInventoryDocument = (input:InventoryDocumentInput) => apiFetch<InventoryDocumentDetail>('/api/inventory/documents',{method:'POST',body:JSON.stringify(input)});
+export interface AdminOrder { id:string;code:string;status:string;paymentStatus:string;name:string;phone:string;createdAt:string;quantity:number;amount:number;total:number }
+export interface AdminOrderDetail extends AdminOrder { address:string;note:string;carrier:string;trackingCode:string;inventoryState:string|null;shippingFee:number;discount:number;items:{productId:string;name:string;quantity:number;price:number;amount:number}[] }
+export const fetchAdminOrders=(search='',status='',cursor='')=>apiFetch<{orders:AdminOrder[];nextCursor:string|null}>('/api/orders?'+new URLSearchParams({search,status,...(cursor?{cursor}:{})}));
+export const fetchAdminOrder=(id:string)=>apiFetch<AdminOrderDetail>('/api/orders/'+encodeURIComponent(id));
+export const changeAdminOrder=(id:string,action:string,expectedStatus:string)=>apiFetch<AdminOrderDetail>('/api/orders/'+encodeURIComponent(id)+'/action',{method:'POST',body:JSON.stringify({action,expectedStatus})});

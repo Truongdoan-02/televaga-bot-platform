@@ -1,7 +1,7 @@
 import express from 'express';
+import { serveUpload } from './services/uploadStore.js';
+import { adminSession, createAuthRouter, requireAdmin, requireTrustedOrigin } from './services/adminAuth.js';
 import { createServer } from 'http';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { config } from './config/index.js';
@@ -12,21 +12,37 @@ import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import botRoutes from './routes/botRoutes.js';
+import productRoutes from './routes/productRoutes.js';
+import supplierRoutes from './routes/supplierRoutes.js';
+import inventoryRoutes from './routes/inventoryRoutes.js';
+import orderAdminRoutes from './routes/orderAdminRoutes.js';
+import { orderAdminService } from './services/orderAdminService.js';
+import shopRoutes from './routes/shopRoutes.js';
+import { shopOrderService } from './services/shopOrderService.js';
+import { inventoryService } from './services/inventoryService.js';
+import { supplierService } from './services/supplierService.js';
+import { productService } from './services/productService.js';
 import broadcastRoutes from './routes/broadcastRoutes.js';
 import { broadcastService } from './services/broadcastService.js';
 import { telegramService } from './services/telegramService.js';
 import { bnkDataService } from './services/bnkDataService.js';
 
-const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data/uploads');
 
 async function bootstrap() {
   // Initialize database
   await db.initialize();
+  await supplierService.initialize();
+  await productService.initialize();
+  await inventoryService.initialize();
   try {
     await bnkDataService.initialize();
   } catch (error) {
+    if (process.env.BNK_REQUIRED === 'true') throw error;
     console.error('[BNK] Business-data integration is unavailable:', error instanceof Error ? error.message : error);
   }
+
+  await shopOrderService.initialize();
+  await orderAdminService.initialize();
 
   const app = express();
   const httpServer = createServer(app);
@@ -40,6 +56,23 @@ async function bootstrap() {
     },
   });
 
+  io.use((socket, next) => {
+    const session = adminSession(socket.request.headers.cookie);
+    if (!session || socket.handshake.headers.origin !== config.clientUrl) { next(new Error('Unauthorized')); return; }
+    socket.data.adminSession = session;
+    next();
+  });
+  io.on('connection', socket => {
+    const timer = setInterval(() => {
+      if (!adminSession(socket.request.headers.cookie)) socket.disconnect(true);
+    }, 10_000);
+    socket.use((_packet, next) => {
+      if (!adminSession(socket.request.headers.cookie)) { socket.disconnect(true); next(new Error('Unauthorized')); return; }
+      next();
+    });
+    socket.on('disconnect', () => clearInterval(timer));
+  });
+
   // Initialize socket service
   socketService.init(io);
 
@@ -48,9 +81,15 @@ async function bootstrap() {
     origin: config.clientUrl,
     credentials: true,
   }));
+  app.use('/api/shop', shopRoutes);
+  app.use('/api', requireTrustedOrigin);
+  app.use('/api/chats/:chatId/messages/media', requireAdmin, express.raw({ type: () => true, limit: '50mb' }));
   app.use(express.json());
-  app.use('/api/chats/:chatId/messages/media', express.raw({ type: () => true, limit: '50mb' }));
-  app.use('/uploads', express.static(uploadsDirectory));
+  app.use('/api/auth', createAuthRouter(session => {
+    for (const socket of io.sockets.sockets.values()) if (socket.data.adminSession === session) socket.disconnect(true);
+  }));
+  app.use('/api', requireAdmin);
+  app.use('/uploads', serveUpload);
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -74,8 +113,12 @@ async function bootstrap() {
   app.use('/api/chats/:chatId/messages', messageRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/bots', botRoutes);
+  app.use('/api/products', productRoutes);
+  app.use('/api/suppliers', supplierRoutes);
+  app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/orders', orderAdminRoutes);
   app.use('/api/broadcasts', broadcastRoutes);
-  broadcastService.initialize();
+  await broadcastService.initialize();
 
   // Telegram Webhook endpoint (for real Telegram Bot integration - Stage 3)
   app.post('/webhook/telegram', async (req, res) => {

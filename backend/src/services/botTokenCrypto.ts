@@ -15,6 +15,13 @@ export interface EncryptedBotToken {
 }
 
 function getEncryptionKey(): Buffer {
+  if (config.botTokenEncryptionKey.startsWith('base64:')) {
+    const encoded = config.botTokenEncryptionKey.slice(7);
+    if (!/^[A-Za-z0-9+/]{43}=$/.test(encoded)) throw new Error('Invalid base64 bot encryption key');
+    const key = Buffer.from(encoded, 'base64');
+    if (key.length !== 32) throw new Error('Bot encryption key must be 32 bytes');
+    return key;
+  }
   if (config.botTokenEncryptionKey) {
     return createHash('sha256').update(config.botTokenEncryptionKey, 'utf8').digest();
   }
